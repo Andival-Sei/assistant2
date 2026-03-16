@@ -1,0 +1,60 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+
+const t = {
+  brand: 'Assistant',
+  langSwitch: 'Русский',
+  theme: {
+    system: 'Theme: System',
+    light: 'Theme: Light',
+    dark: 'Theme: Dark'
+  },
+  hero: {
+    pill: 'Personal assistant 3-in-1: Windows • Android • Web',
+    title: 'One assistant that keeps everything aligned.',
+    subtitle: 'Finances, tasks, health, AI features, and privacy — one ecosystem where every action is synced to your rules.',
+    cta: 'Go to sign in',
+    ctaLink: '/en/app/',
+    metrics: [
+      { tag: 'MODULES', title: 'Spending, steps, todo, AI, VPN', text: 'Modular architecture: enable what you need, disable what you do not.' },
+      { tag: 'CORE', title: 'Local-first by default', text: 'Sensitive data stays on device, sync happens on demand.' },
+      { tag: 'PLATFORMS', title: 'Native clients', text: 'Maximum capabilities and performance per platform.' }
+    ]
+  },
+  modules: {
+    title: 'Launch modules',
+    items: [
+      { title: 'Spending', text: 'Categories, limits, quick input, period analytics.' },
+      { title: 'Steps & health', text: 'Integrations with trackers and services, unified metrics feed.' },
+      { title: 'Todo', text: 'Contextual tasks, templates, focus mode.' },
+      { title: 'AI tools', text: 'Summaries, note search, decision assistant.' },
+      { title: 'VPN control', text: 'Simple profile and mode switching.' },
+      { title: 'Integrations', text: 'Calendars, services, and external APIs.' }
+    ]
+  },
+  roadmap: {
+    title: 'Launch roadmap',
+    items: [
+      { phase: 'Q1', title: 'Base platform', text: 'Spending, Todo, auth, and sync.' },
+      { phase: 'Q2', title: 'Integrations', text: 'Steps, calendars, and a baseline AI assistant.' },
+      { phase: 'Q3', title: 'Security', text: 'VPN module and advanced privacy.' }
+    ]
+  },
+  security: {
+    title: 'Security principles',
+    items: [
+      { title: 'Transparency', text: 'Clear data storage and access rules.' },
+      { title: 'Granular permissions', text: 'Each module asks only for what it needs.' },
+      { title: 'Sync control', text: 'You decide what goes to the cloud.' }
+    ]
+  },
+  footer: {
+    note: '© 2026 Assistant. All rights reserved.',
+    links: 'Policy · Terms · Contact'
+  }
+};
+
+const title = 'Assistant — personal assistant';
+const description = 'A unified assistant for finances, tasks, health, and privacy.';
+---
+<BaseLayout lang="en" title={title} description={description} t={t} altLangPath="/ru/" />

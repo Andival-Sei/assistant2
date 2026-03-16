@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Assistant.WinUI.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Assistant.WinUI"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    mc:Ignorable="d"
+    Title="Assistant">
+
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+
+    <Grid x:Name="RootGrid" Background="{ThemeResource PageBackgroundBrush}">
+        <Grid IsHitTestVisible="False">
+            <Ellipse Width="520" Height="520" Opacity="0.3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-120,-120,0,0">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#7FF0C2B2" Offset="0" />
+                        <GradientStop Color="#00F0C2B2" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+            <Ellipse Width="520" Height="520" Opacity="0.3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-140,-160">
+                <Ellipse.Fill>
+                    <RadialGradientBrush>
+                        <GradientStop Color="#7FB0DCD8" Offset="0" />
+                        <GradientStop Color="#00B0DCD8" Offset="1" />
+                    </RadialGradientBrush>
+                </Ellipse.Fill>
+            </Ellipse>
+        </Grid>
+
+        <ScrollViewer>
+            <Grid MaxWidth="1100" HorizontalAlignment="Center" Margin="20,24,20,80">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0" ColumnSpacing="12" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock x:Name="LogoText" Text="ASSISTANT" FontWeight="SemiBold" CharacterSpacing="200" Foreground="{ThemeResource InkBrush}" />
+
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                        <Button x:Name="ThemeButton" Click="ThemeButton_Click" Padding="12,0" Height="32" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="16" />
+                        <Button x:Name="LangButton" Click="LangButton_Click" Padding="12,0" Height="32" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="16" />
+                    </StackPanel>
+                </Grid>
+
+                <Grid Grid.Row="1" Margin="0,52,0,0" ColumnSpacing="40" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="1.2*" />
+                        <ColumnDefinition Width="0.8*" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Spacing="16">
+                        <Border Background="{ThemeResource PillBackgroundBrush}" CornerRadius="999" Padding="10,6" HorizontalAlignment="Left">
+                            <TextBlock x:Name="HeroPill" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
+                        </Border>
+                        <TextBlock x:Name="HeroTitle" FontSize="44" LineHeight="50" FontFamily="Georgia" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                        <TextBlock x:Name="HeroSubtitle" FontSize="16" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                        <TextBlock x:Name="HeroHint" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                    </StackPanel>
+
+                    <Border Grid.Column="1" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="18" Padding="24" MaxWidth="380" HorizontalAlignment="Right">
+                        <StackPanel Spacing="14">
+                            <TextBlock x:Name="FormTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="EmailLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                <TextBox x:Name="EmailInput" PlaceholderText="" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" />
+                            </StackPanel>
+
+                            <StackPanel Spacing="6">
+                                <TextBlock x:Name="PasswordLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                <PasswordBox x:Name="PasswordInput" PlaceholderText="" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" />
+                            </StackPanel>
+
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <CheckBox x:Name="RememberCheck" Content="" Foreground="{ThemeResource MutedTextBrush}" />
+                                <HyperlinkButton x:Name="ForgotButton" Grid.Column="1" Content="" Foreground="{ThemeResource MutedTextBrush}" />
+                            </Grid>
+
+                            <Button x:Name="SubmitButton" Padding="12,8" Background="{ThemeResource PrimaryButtonBackgroundBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderThickness="0" CornerRadius="12" />
+                            <TextBlock x:Name="FormNote" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </Grid>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</Window>

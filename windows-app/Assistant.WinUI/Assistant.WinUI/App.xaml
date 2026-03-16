@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Application
+    x:Class="Assistant.WinUI.App"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Assistant.WinUI">
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF3F1EC" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFF8F7F4" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#FF1B1B1B" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF4F4F4F" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#FF0A6B6B" />
+                    <SolidColorBrush x:Key="Accent2Brush" Color="#FFD64B2A" />
+                    <SolidColorBrush x:Key="StrokeBrush" Color="#23232324" />
+                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#CCFFFFFF" />
+                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1F0A6B6B" />
+                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF1B1B1B" />
+                    <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FFFFFFFF" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF0B0F13" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FF121722" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#FFF3F5F7" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FFC3C7D0" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#FF7CD8D2" />
+                    <SolidColorBrush x:Key="Accent2Brush" Color="#FFFF8A6A" />
+                    <SolidColorBrush x:Key="StrokeBrush" Color="#24F3F5F7" />
+                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#B20C1018" />
+                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1F7CD8D2" />
+
+                    <LinearGradientBrush x:Key="PrimaryButtonBackgroundBrush" StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#FFF3F5F7" Offset="0" />
+                        <GradientStop Color="#FFCFD5DF" Offset="1" />
+                    </LinearGradientBrush>
+                    <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FF0B0F13" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+
+            <ResourceDictionary.MergedDictionaries>
+                <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+</Application>

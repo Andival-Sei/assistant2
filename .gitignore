@@ -1,0 +1,49 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+*.bak
+*.log
+
+# Node / Web (Astro)
+web/node_modules/
+web/.astro/
+web/dist/
+web/.cache/
+web/.vercel/
+web/.netlify/
+web/.env*
+
+# Android / Gradle
+android-app/.gradle/
+android-app/**/build/
+android-app/**/.cxx/
+android-app/**/captures/
+android-app/local.properties
+android-app/**/.externalNativeBuild/
+android-app/**/.idea/
+
+# Android Studio / IntelliJ
+**/.idea/
+*.iml
+
+# Windows / Visual Studio (WinUI)
+windows-app/**/bin/
+windows-app/**/obj/
+windows-app/.vs/
+windows-app/**/.vs/
+windows-app/**/Generated Files/
+windows-app/**/AppPackages/
+windows-app/**/*.user
+windows-app/**/*.suo
+windows-app/**/*.userosscache
+windows-app/**/*.sln.docstates
+
+# VS general
+.vs/
+
+# Misc
+*.apk
+*.aab
