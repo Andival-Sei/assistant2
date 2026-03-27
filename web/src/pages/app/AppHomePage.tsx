@@ -5,17 +5,15 @@ import { useNavigate } from "react-router-dom";
 
 import { TopNav } from "../../components/top/TopNav";
 import { signOutEverywhere, supabase } from "../../lib/supabaseClient";
-
-import { DashboardSection, FinanceOverview, FinanceTab, SectionCopy, FinanceOnboardingState } from '../../types';
+import {
+  DashboardSection,
+  DashboardSubsection,
+  FinanceOverview,
+  FinanceTab,
+  FinanceOnboardingState,
+} from "../../types";
 import { FinancePanel, parseAmountToMinor } from './FinancePanel';
-
-const sections: DashboardSection[] = [
-  "home",
-  "finance",
-  "health",
-  "tasks",
-  "settings",
-];
+import { getDashboardShellConfig, getDefaultSubsection } from "./shellConfig";
 
 function formatUserName(user: User | null, fallback: string) {
   const email = user?.email?.trim();
@@ -24,82 +22,69 @@ function formatUserName(user: User | null, fallback: string) {
   return head.charAt(0).toUpperCase() + head.slice(1);
 }
 
-function getCopy(lang: "ru" | "en"): Record<DashboardSection, SectionCopy> {
-  if (lang === "ru") {
-    return {
-      home: {
-        label: "Главная",
-        title: "Главная",
-        note: "Раздел в разработке. Здесь появится главный обзор проекта, быстрые действия и персональная сводка.",
-        mobileIcon: "GL",
-      },
-      finance: {
-        label: "Финансы",
-        title: "Финансы",
-        note: "Центр финансового контроля: баланс, счета, транзакции и настройки.",
-        mobileIcon: "FN",
-      },
-      health: {
-        label: "Здоровье",
-        title: "Здоровье",
-        note: "Раздел в разработке. Здесь появятся трекинг самочувствия, метрики и история состояния.",
-        mobileIcon: "HL",
-      },
-      tasks: {
-        label: "Задачи",
-        title: "Задачи",
-        note: "Раздел в разработке. Здесь будут списки задач, статусы, приоритеты и рабочие потоки.",
-        mobileIcon: "TK",
-      },
-      settings: {
-        label: "Настройки",
-        title: "Настройки",
-        note: "Раздел в разработке. Здесь будут параметры приложения, профиля и подключённых сервисов.",
-        mobileIcon: "NS",
-      },
-    };
-  }
-
-  return {
-    home: {
-      label: "Home",
-      title: "Home",
-      note: "This section is in development. It will contain the main project overview, quick actions, and personal summary.",
-      mobileIcon: "HM",
-    },
-    finance: {
-      label: "Finance",
-      title: "Finance",
-      note: "Your finance workspace: balance, accounts, transactions, and setup.",
-      mobileIcon: "FN",
-    },
-    health: {
-      label: "Health",
-      title: "Health",
-      note: "This section is in development. It will contain wellbeing tracking, metrics, and health history.",
-      mobileIcon: "HL",
-    },
-    tasks: {
-      label: "Tasks",
-      title: "Tasks",
-      note: "This section is in development. It will contain task lists, statuses, priorities, and work flows.",
-      mobileIcon: "TS",
-    },
-    settings: {
-      label: "Settings",
-      title: "Settings",
-      note: "This section is in development. It will contain app, profile, and connected service settings.",
-      mobileIcon: "ST",
-    },
+function SectionIcon({ section }: { section: DashboardSection }) {
+  const stroke = {
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.8,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
   };
+
+  switch (section) {
+    case "home":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path {...stroke} d="M3.5 9.2 10 4l6.5 5.2v6.3a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1Z" />
+          <path {...stroke} d="M8 16.5v-4.2h4v4.2" />
+        </svg>
+      );
+    case "finance":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <rect {...stroke} x="2.8" y="4.8" width="14.4" height="10.4" rx="2.2" />
+          <path {...stroke} d="M2.8 8.3h14.4" />
+          <path {...stroke} d="M6.4 12.1h2.2" />
+        </svg>
+      );
+    case "health":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path
+            {...stroke}
+            d="M10 16.6 4.6 11.3A3.6 3.6 0 0 1 9.7 6l.3.3.3-.3a3.6 3.6 0 0 1 5.1 5.1Z"
+          />
+        </svg>
+      );
+    case "tasks":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path {...stroke} d="M6.4 6.1h8.1M6.4 10h8.1M6.4 13.9h8.1" />
+          <path {...stroke} d="m3.8 6.2.9.9 1.6-1.8M3.8 10.1l.9.9 1.6-1.8M3.8 14l.9.9 1.6-1.8" />
+        </svg>
+      );
+    case "settings":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <circle {...stroke} cx="10" cy="10" r="2.7" />
+          <path {...stroke} d="M10 2.7v2.1M10 15.2v2.1M17.3 10h-2.1M4.8 10H2.7" />
+          <path {...stroke} d="m15.2 4.8-1.5 1.5M6.3 13.7l-1.5 1.5M15.2 15.2l-1.5-1.5M6.3 6.3 4.8 4.8" />
+        </svg>
+      );
+  }
 }
 
 export function AppHomePage() {
   const { i18n } = useTranslation();
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
+  const lang = i18n.language.startsWith("ru") ? "ru" : "en";
+  const shellConfig = useMemo(() => getDashboardShellConfig(lang), [lang]);
   const [section, setSection] = useState<DashboardSection>(() => {
     return (localStorage.getItem("dashboard_section") as DashboardSection) || "home";
+  });
+  const [subsection, setSubsection] = useState<DashboardSubsection>(() => {
+    return (localStorage.getItem("dashboard_subsection") as DashboardSubsection) || "summary";
   });
   const [financeTab, setFinanceTab] = useState<FinanceTab>("overview");
   const [financeOverview, setFinanceOverview] = useState<FinanceOverview | null>(null);
@@ -113,14 +98,17 @@ export function AppHomePage() {
     cash: "",
   });
 
-  const lang = i18n.language.startsWith("ru") ? "ru" : "en";
-  const copy = useMemo(() => getCopy(lang), [lang]);
   const userName = useMemo(
     () => formatUserName(user, lang === "ru" ? "пользователь" : "user"),
     [lang, user],
   );
-  const userEmail = user?.email ?? "—";
-  const active = copy[section];
+  const active = shellConfig[section];
+  const availableSubsections = active.subsections;
+  const activeSubsection =
+    availableSubsections.find((item) => item.id === subsection) ?? availableSubsections[0];
+  const primaryRailItems = (Object.keys(shellConfig) as DashboardSection[]).filter(
+    (item) => item !== "settings",
+  );
 
   const loadFinanceOverview = async () => {
     setFinanceLoading(true);
@@ -158,6 +146,29 @@ export function AppHomePage() {
   }, [section]);
 
   useEffect(() => {
+    localStorage.setItem("dashboard_subsection", subsection);
+  }, [subsection]);
+
+  useEffect(() => {
+    const nextDefault = getDefaultSubsection(shellConfig, section);
+    const isAvailable = shellConfig[section].subsections.some((item) => item.id === subsection);
+    if (!isAvailable) {
+      setSubsection(nextDefault);
+    }
+  }, [section, shellConfig, subsection]);
+
+  useEffect(() => {
+    if (section === "finance" && (
+      subsection === "overview" ||
+      subsection === "accounts" ||
+      subsection === "transactions" ||
+      subsection === "settings"
+    )) {
+      setFinanceTab(subsection);
+    }
+  }, [section, subsection]);
+
+  useEffect(() => {
     if (!user || section !== "finance") return;
     void loadFinanceOverview();
   }, [section, user]);
@@ -191,128 +202,160 @@ export function AppHomePage() {
   };
 
   return (
-    <div className="wrap dashboard-wrap">
-      <TopNav variant="auth" />
-
-      <section className="dashboard-shell dashboard-shell-clean">
-        <aside className="dashboard-sidebar dashboard-sidebar-clean">
-          <div className="dashboard-brand">A</div>
-          <div>
-            <p className="dashboard-sidebar-label">Workspace</p>
-            <h1 className="dashboard-sidebar-title">Assistant</h1>
-            <p className="dashboard-sidebar-copy">
-              {lang === "ru"
-                ? "Общий центр управления после авторизации."
-                : "Shared control center after sign-in."}
-            </p>
+    <div className="dashboard-app-shell">
+      <aside className="dashboard-left-rail">
+        <div className="dashboard-left-rail-inner">
+          <div className="dashboard-brand-block">
+            <div className="dashboard-brand">A</div>
+            <div>
+              <p className="dashboard-sidebar-label">Workspace</p>
+              <h1 className="dashboard-sidebar-title">Assistant</h1>
+            </div>
           </div>
 
-          <nav className="dashboard-nav" aria-label="Dashboard navigation">
-            {sections.map((item) => (
+          <nav className="dashboard-primary-nav" aria-label="Dashboard navigation">
+            {primaryRailItems.map((item) => (
               <button
                 key={item}
-                className={`dashboard-nav-item ${
-                  section === item ? "active" : ""
-                }`}
+                className={`dashboard-nav-item ${section === item ? "active" : ""}`}
                 type="button"
-                onClick={() => setSection(item)}
+                onClick={() => {
+                  setSection(item);
+                  setSubsection(getDefaultSubsection(shellConfig, item));
+                }}
               >
-                {copy[item].label}
+                <span className="dashboard-nav-icon">
+                  <SectionIcon section={item} />
+                </span>
+                <span className="dashboard-nav-copy">
+                  <strong>{shellConfig[item].label}</strong>
+                </span>
               </button>
             ))}
           </nav>
 
-          <div className="dashboard-profile">
-            <p className="dashboard-sidebar-label">
-              {lang === "ru" ? "Пользователь" : "User"}
-            </p>
-            <strong>{userEmail}</strong>
-            <span>
-              {lang === "ru"
-                ? "Сессия активна и защищена через Supabase Auth."
-                : "Session is active and protected with Supabase Auth."}
-            </span>
+          <div className="dashboard-rail-footer">
+            <button
+              className={`dashboard-nav-item dashboard-nav-item-footer ${section === "settings" ? "active" : ""}`}
+              type="button"
+              onClick={() => {
+                setSection("settings");
+                setSubsection(getDefaultSubsection(shellConfig, "settings"));
+              }}
+            >
+              <span className="dashboard-nav-icon">
+                <SectionIcon section="settings" />
+              </span>
+              <span className="dashboard-nav-copy">
+                <strong>{shellConfig.settings.label}</strong>
+              </span>
+            </button>
           </div>
+        </div>
+      </aside>
 
-        </aside>
+      <main className="dashboard-stage">
+        <div className="dashboard-stage-topbar">
+          <TopNav variant="auth" />
+        </div>
 
-        <main className="dashboard-main dashboard-main-clean">
-          <div className="dashboard-page-shell" key={`${lang}-${section}`}>
-            {section !== "finance" ? (
-              <header className="dashboard-header dashboard-header-clean">
-                <div>
-                  <p className="dashboard-eyebrow">{active.label}</p>
-                  <h2>
-                    {lang === "ru"
-                      ? `${active.title}, ${userName}.`
-                      : `${active.title}, ${userName}.`}
-                  </h2>
-                </div>
-              </header>
-            ) : null}
+        <section className="dashboard-stage-shell">
+          <div className="dashboard-stage-content">
+            <header className="dashboard-shell-header">
+              <div className="dashboard-shell-heading">
+                <span className="dashboard-shell-badge">{active.badge}</span>
+                <p className="dashboard-eyebrow">{active.eyebrow}</p>
+                <h2>{lang === "ru" ? `${active.title}, ${userName}.` : `${active.title}, ${userName}.`}</h2>
+                <p className="dashboard-shell-note">{active.note}</p>
+              </div>
 
-            {section === "finance" ? (
-              <FinancePanel
-                lang={lang}
-                overview={financeOverview}
-                loading={financeLoading}
-                error={financeError}
-                financeTab={financeTab}
-                onTabChange={setFinanceTab}
-                onboarding={financeOnboarding}
-                onboardingStep={financeOnboardingStep}
-                onSetOnboarding={(patch) =>
-                  setFinanceOnboarding((current) => ({ ...current, ...patch }))
-                }
-                onStepChange={setFinanceOnboardingStep}
-                onComplete={completeFinanceOnboarding}
-              />
-            ) : (
-              <article className="dashboard-placeholder-card">
-                <span className="dashboard-placeholder-badge">
-                  {section === "settings"
-                    ? lang === "ru"
-                      ? "Безопасность"
-                      : "Security"
-                    : lang === "ru"
-                      ? "В разработке"
-                      : "In development"}
-                </span>
-                <h3>{active.title}</h3>
-                <p>{active.note}</p>
-                {section === "settings" ? (
-                  <div className="settings-actions">
-                    <button
-                      className="dashboard-logout settings-logout"
-                      type="button"
-                      onClick={onLogout}
-                    >
-                      {lang === "ru" ? "Выйти из аккаунта" : "Sign out"}
-                    </button>
+              <nav className="dashboard-secondary-nav" aria-label="Section navigation">
+                {availableSubsections.map((item) => (
+                  <button
+                    key={item.id}
+                    className={`dashboard-secondary-item ${activeSubsection.id === item.id ? "active" : ""}`}
+                    type="button"
+                    onClick={() => {
+                      setSubsection(item.id);
+                      if (
+                        section === "finance" &&
+                        (item.id === "overview" ||
+                          item.id === "accounts" ||
+                          item.id === "transactions" ||
+                          item.id === "settings")
+                      ) {
+                        onSetFinanceTab(item.id);
+                      }
+                    }}
+                  >
+                    {item.label}
+                  </button>
+                ))}
+              </nav>
+            </header>
+
+            <div className="dashboard-content-stage" key={`${lang}-${section}-${activeSubsection.id}`}>
+              {section === "finance" ? (
+                <FinancePanel
+                  lang={lang}
+                  overview={financeOverview}
+                  loading={financeLoading}
+                  error={financeError}
+                  financeTab={financeTab}
+                  onTabChange={onSetFinanceTab}
+                  onboarding={financeOnboarding}
+                  onboardingStep={financeOnboardingStep}
+                  onSetOnboarding={(patch) =>
+                    setFinanceOnboarding((current) => ({ ...current, ...patch }))
+                  }
+                  onStepChange={setFinanceOnboardingStep}
+                  onComplete={completeFinanceOnboarding}
+                />
+              ) : (
+                <article className="dashboard-placeholder-card dashboard-placeholder-card-premium">
+                  <div className="dashboard-placeholder-meta">
+                    <span className="dashboard-placeholder-badge">{active.badge}</span>
+                    <span className="dashboard-placeholder-subsection">{activeSubsection.label}</span>
                   </div>
-                ) : null}
-              </article>
-            )}
+                  <h3>{active.title}</h3>
+                  <p>{active.note}</p>
+                  {section === "settings" ? (
+                    <div className="settings-actions">
+                      <button
+                        className="dashboard-logout settings-logout"
+                        type="button"
+                        onClick={onLogout}
+                      >
+                        {lang === "ru" ? "Выйти из аккаунта" : "Sign out"}
+                      </button>
+                    </div>
+                  ) : null}
+                </article>
+              )}
+            </div>
           </div>
-        </main>
-      </section>
+        </section>
+      </main>
 
       <nav className="dashboard-bottom-nav" aria-label="Mobile dashboard navigation">
-        {sections.map((item) => (
+        {(Object.keys(shellConfig) as DashboardSection[]).map((item) => (
           <button
             key={item}
             className={`dashboard-bottom-item ${
               section === item ? "active" : ""
             }`}
             type="button"
-            onClick={() => setSection(item)}
+            onClick={() => {
+              setSection(item);
+              setSubsection(getDefaultSubsection(shellConfig, item));
+            }}
           >
             <span className="dashboard-bottom-item-inner">
               <span className="dashboard-bottom-item-icon">
-                {copy[item].mobileIcon}
+                <SectionIcon section={item} />
               </span>
               <span className="dashboard-bottom-item-label">
-                {copy[item].label}
+                {shellConfig[item].label}
               </span>
             </span>
           </button>
@@ -320,4 +363,9 @@ export function AppHomePage() {
       </nav>
     </div>
   );
+
+  function onSetFinanceTab(tab: FinanceTab) {
+    setFinanceTab(tab);
+    setSubsection(tab);
+  }
 }

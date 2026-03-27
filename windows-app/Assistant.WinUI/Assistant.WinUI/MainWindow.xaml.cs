@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Assistant.WinUI.Auth;
@@ -47,6 +48,7 @@ namespace Assistant.WinUI
         private AuthMode _mode = AuthMode.Login;
         private DashboardSection _section = DashboardSection.Home;
         private FinanceTab _financeTab = FinanceTab.Overview;
+        private string _activeSubsection = "summary";
         private int _financeOnboardingStep;
         private FinanceOverview? _financeOverview;
         private readonly SupabaseAuthClient _authClient;
@@ -55,6 +57,7 @@ namespace Assistant.WinUI
         private AuthSession? _session;
         private bool _showPassword;
         private bool _showConfirmPassword;
+        private bool _isCompactShell;
 
         public MainWindow()
         {
@@ -86,6 +89,8 @@ namespace Assistant.WinUI
             ApplyWindowChrome();
             ApplyMode();
             LoadSession();
+            SizeChanged += MainWindow_SizeChanged;
+            ApplyAdaptiveShellLayout();
 
             if (string.IsNullOrWhiteSpace(AppConfig.SupabaseUrl) ||
                 string.IsNullOrWhiteSpace(AppConfig.SupabaseAnonKey))
@@ -93,6 +98,11 @@ namespace Assistant.WinUI
                 SetStatus(_isRussian ? "Нет настроек Supabase." : "Supabase config is missing.", true);
                 SetBusy(true);
             }
+        }
+
+        private void MainWindow_SizeChanged(object sender, WindowSizeChangedEventArgs args)
+        {
+            ApplyAdaptiveShellLayout();
         }
 
         public async Task HandleProtocolActivationAsync(Uri uri)
@@ -214,6 +224,10 @@ namespace Assistant.WinUI
         private void FinanceAccountsTabButton_Click(object sender, RoutedEventArgs e) => SetFinanceTab(FinanceTab.Accounts);
         private void FinanceTransactionsTabButton_Click(object sender, RoutedEventArgs e) => SetFinanceTab(FinanceTab.Transactions);
         private void FinanceSettingsTabButton_Click(object sender, RoutedEventArgs e) => SetFinanceTab(FinanceTab.Settings);
+        private void SecondaryTabOneButton_Click(object sender, RoutedEventArgs e) => SetSecondaryTabByIndex(0);
+        private void SecondaryTabTwoButton_Click(object sender, RoutedEventArgs e) => SetSecondaryTabByIndex(1);
+        private void SecondaryTabThreeButton_Click(object sender, RoutedEventArgs e) => SetSecondaryTabByIndex(2);
+        private void SecondaryTabFourButton_Click(object sender, RoutedEventArgs e) => SetSecondaryTabByIndex(3);
         private async void FinanceRetryButton_Click(object sender, RoutedEventArgs e) => await LoadFinanceOverviewAsync();
         private void FinanceBackButton_Click(object sender, RoutedEventArgs e)
         {
@@ -466,24 +480,22 @@ namespace Assistant.WinUI
         {
             SidebarWorkspaceLabel.Text = _isRussian ? "WORKSPACE" : "WORKSPACE";
             SidebarTitle.Text = "Assistant";
-            SidebarCopy.Text = _isRussian
-                ? "Общий центр управления после авторизации."
-                : "Shared control center after sign-in.";
+            SidebarCopy.Text = string.Empty;
 
-            NavOverviewButton.Content = _isRussian ? "Главная" : "Home";
-            NavFinanceButton.Content = _isRussian ? "Финансы" : "Finance";
-            NavHealthButton.Content = _isRussian ? "Здоровье" : "Health";
-            NavTasksButton.Content = _isRussian ? "Задачи" : "Tasks";
-            NavSettingsButton.Content = _isRussian ? "Настройки" : "Settings";
-
-            SidebarUserLabel.Text = _isRussian ? "ПОЛЬЗОВАТЕЛЬ" : "USER";
-            SidebarUserBody.Text = _isRussian
-                ? "Сессия активна и защищена через Supabase Auth."
-                : "Session is active and protected with Supabase Auth.";
+            NavOverviewLabel.Text = _isRussian ? "Главная" : "Home";
+            NavFinanceLabel.Text = _isRussian ? "Финансы" : "Finance";
+            NavHealthLabel.Text = _isRussian ? "Здоровье" : "Health";
+            NavTasksLabel.Text = _isRussian ? "Задачи" : "Tasks";
+            NavSettingsLabel.Text = _isRussian ? "Настройки" : "Settings";
+            CompactNavOverviewLabel.Text = NavOverviewLabel.Text;
+            CompactNavFinanceLabel.Text = NavFinanceLabel.Text;
+            CompactNavHealthLabel.Text = NavHealthLabel.Text;
+            CompactNavTasksLabel.Text = NavTasksLabel.Text;
+            CompactNavSettingsLabel.Text = NavSettingsLabel.Text;
             SettingsLogoutButton.Content = _isRussian ? "Выйти из аккаунта" : "Sign out";
 
-            DashboardLabel.Text = SectionLabel(_section).ToUpperInvariant();
-            DashboardStatusBadge.Text = "Live";
+            DashboardLabel.Text = GetSectionConfig().Eyebrow.ToUpperInvariant();
+            DashboardStatusBadge.Text = GetSectionConfig().Badge;
             DashboardStatusTitle.Text = "Assistant2 / Supabase";
             DashboardStatusBody.Text = _isRussian
                 ? "Синхронизация между клиентами в работе"
@@ -604,14 +616,14 @@ namespace Assistant.WinUI
             var hasSession = HasSession();
             AuthShell.Visibility = hasSession ? Visibility.Collapsed : Visibility.Visible;
             DashboardShell.Visibility = hasSession ? Visibility.Visible : Visibility.Collapsed;
+            ApplyAdaptiveShellLayout();
 
             if (hasSession)
             {
-                DashboardEmailText.Text = ExtractEmail();
                 DashboardWelcomeTitle.Text = _isRussian
                     ? $"{SectionLabel(_section)}, {ExtractDisplayName()}."
                     : $"{SectionLabel(_section)}, {ExtractDisplayName()}.";
-                DashboardSubtitle.Text = SectionDescription(_section);
+                DashboardSubtitle.Text = GetSectionConfig().Note;
                 ApplySectionContent(false);
                 if (_section == DashboardSection.Finance)
                 {
@@ -623,13 +635,18 @@ namespace Assistant.WinUI
         private void SetSection(DashboardSection section)
         {
             _section = section;
+            _activeSubsection = GetSectionConfig().DefaultSubsection;
+            if (_section == DashboardSection.Finance)
+            {
+                _financeTab = FinanceTab.Overview;
+            }
             if (HasSession())
             {
                 DashboardWelcomeTitle.Text = _isRussian
                     ? $"{SectionLabel(_section)}, {ExtractDisplayName()}."
                     : $"{SectionLabel(_section)}, {ExtractDisplayName()}.";
-                DashboardSubtitle.Text = SectionDescription(_section);
-                DashboardLabel.Text = SectionLabel(_section).ToUpperInvariant();
+                DashboardSubtitle.Text = GetSectionConfig().Note;
+                DashboardLabel.Text = GetSectionConfig().Eyebrow.ToUpperInvariant();
                 ApplySectionContent(true);
                 if (_section == DashboardSection.Finance)
                 {
@@ -640,15 +657,22 @@ namespace Assistant.WinUI
 
         private void ApplySectionContent(bool animated)
         {
-            PlaceholderBadge.Text = _isRussian ? "В разработке" : "In development";
+            var config = GetSectionConfig();
+            PlaceholderBadge.Text = config.Badge;
             PlaceholderTitle.Text = SectionLabel(_section);
-            PlaceholderBody.Text = SectionDescription(_section);
+            PlaceholderBody.Text = config.Note;
 
             ApplyNavButtonState(NavOverviewButton, _section == DashboardSection.Home);
             ApplyNavButtonState(NavFinanceButton, _section == DashboardSection.Finance);
             ApplyNavButtonState(NavHealthButton, _section == DashboardSection.Health);
             ApplyNavButtonState(NavTasksButton, _section == DashboardSection.Tasks);
             ApplyNavButtonState(NavSettingsButton, _section == DashboardSection.Settings);
+            ApplyNavButtonState(CompactNavOverviewButton, _section == DashboardSection.Home);
+            ApplyNavButtonState(CompactNavFinanceButton, _section == DashboardSection.Finance);
+            ApplyNavButtonState(CompactNavHealthButton, _section == DashboardSection.Health);
+            ApplyNavButtonState(CompactNavTasksButton, _section == DashboardSection.Tasks);
+            ApplyNavButtonState(CompactNavSettingsButton, _section == DashboardSection.Settings);
+            ApplySecondaryTabs();
 
             var financeVisible = _section == DashboardSection.Finance;
             var settingsVisible = _section == DashboardSection.Settings;
@@ -728,7 +752,7 @@ namespace Assistant.WinUI
         private void ApplyNavButtonState(Button button, bool active)
         {
             button.Background = active
-                ? (Brush)Application.Current.Resources["PageBackgroundBrush"]
+                ? (Brush)Application.Current.Resources["StageBackgroundBrush"]
                 : new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0, 0, 0, 0));
             button.Foreground = active
                 ? (Brush)Application.Current.Resources["InkBrush"]
@@ -736,6 +760,80 @@ namespace Assistant.WinUI
             button.BorderBrush = active
                 ? (Brush)Application.Current.Resources["StrokeBrush"]
                 : new SolidColorBrush(Microsoft.UI.ColorHelper.FromArgb(0, 0, 0, 0));
+
+            Border? iconBox = button.Name switch
+            {
+                nameof(NavOverviewButton) => NavOverviewIconBox,
+                nameof(NavFinanceButton) => NavFinanceIconBox,
+                nameof(NavHealthButton) => NavHealthIconBox,
+                nameof(NavTasksButton) => NavTasksIconBox,
+                nameof(NavSettingsButton) => NavSettingsIconBox,
+                _ => null
+            };
+
+            if (iconBox != null)
+            {
+                iconBox.Background = active
+                    ? (Brush)Application.Current.Resources["PillBackgroundBrush"]
+                    : (Brush)Application.Current.Resources["StageBackgroundBrush"];
+                iconBox.BorderBrush = active
+                    ? (Brush)Application.Current.Resources["StrokeBrush"]
+                    : (Brush)Application.Current.Resources["StrokeBrush"];
+            }
+        }
+
+        private ShellSectionConfig GetSectionConfig()
+        {
+            var catalog = ShellNavigationCatalog.Create(_isRussian);
+            return catalog[_section.ToString()];
+        }
+
+        private void ApplySecondaryTabs()
+        {
+            var config = GetSectionConfig();
+            var items = config.Subsections.ToList();
+            ApplySecondaryTabButton(SecondaryTabOneButton, items.ElementAtOrDefault(0));
+            ApplySecondaryTabButton(SecondaryTabTwoButton, items.ElementAtOrDefault(1));
+            ApplySecondaryTabButton(SecondaryTabThreeButton, items.ElementAtOrDefault(2));
+            ApplySecondaryTabButton(SecondaryTabFourButton, items.ElementAtOrDefault(3));
+        }
+
+        private void ApplySecondaryTabButton(Button button, ShellNavItem? item)
+        {
+            if (item == null)
+            {
+                button.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            button.Visibility = Visibility.Visible;
+            button.Content = item.Label;
+            var active = string.Equals(_activeSubsection, item.Key, StringComparison.OrdinalIgnoreCase);
+            ApplyNavButtonState(button, active);
+        }
+
+        private void SetSecondaryTabByIndex(int index)
+        {
+            var config = GetSectionConfig();
+            if (index < 0 || index >= config.Subsections.Count)
+            {
+                return;
+            }
+
+            _activeSubsection = config.Subsections[index].Key;
+            if (_section == DashboardSection.Finance)
+            {
+                SetFinanceTab(_activeSubsection switch
+                {
+                    "accounts" => FinanceTab.Accounts,
+                    "transactions" => FinanceTab.Transactions,
+                    "settings" => FinanceTab.Settings,
+                    _ => FinanceTab.Overview
+                });
+                return;
+            }
+
+            ApplySecondaryTabs();
         }
 
         private void ApplyThemeButtonState(Button button, bool active)
@@ -748,9 +846,41 @@ namespace Assistant.WinUI
                 : (Brush)Application.Current.Resources["MutedTextBrush"];
         }
 
+        private void ApplyAdaptiveShellLayout()
+        {
+            var width = RootGrid.ActualWidth;
+            if (width <= 0 && AppWindow != null)
+            {
+                width = AppWindow.Size.Width;
+            }
+
+            _isCompactShell = width > 0 && width < 1040;
+            var hasSession = HasSession();
+
+            SidebarSurface.Visibility = hasSession && !_isCompactShell ? Visibility.Visible : Visibility.Collapsed;
+            CompactPrimaryNavScroller.Visibility = hasSession && _isCompactShell ? Visibility.Visible : Visibility.Collapsed;
+            DashboardShellLayout.ColumnDefinitions[0].Width = _isCompactShell ? new GridLength(0) : new GridLength(272);
+            Grid.SetColumn(DashboardStageSurface, _isCompactShell ? 0 : 1);
+            Grid.SetColumnSpan(DashboardStageSurface, _isCompactShell ? 2 : 1);
+            DashboardStageSurface.Margin = _isCompactShell
+                ? new Thickness(12, 12, 12, 12)
+                : new Thickness(0);
+            DashboardStageSurface.CornerRadius = _isCompactShell
+                ? new CornerRadius(24)
+                : new CornerRadius(30, 0, 0, 0);
+        }
+
         private void SetFinanceTab(FinanceTab tab)
         {
             _financeTab = tab;
+            _activeSubsection = tab switch
+            {
+                FinanceTab.Accounts => "accounts",
+                FinanceTab.Transactions => "transactions",
+                FinanceTab.Settings => "settings",
+                _ => "overview"
+            };
+            ApplySecondaryTabs();
             ApplyFinanceTabButtons();
             RenderFinanceContent();
         }

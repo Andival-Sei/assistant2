@@ -106,6 +106,46 @@ cd f:\pet-projects\assistant\android-app
 .\gradlew.bat :app:installDebug
 ```
 
+Подключение телефона по `adb` через Wi-Fi:
+
+```powershell
+# 1. Один раз с подключённым USB
+& 'C:\Users\freed\AppData\Local\Android\Sdk\platform-tools\adb.exe' tcpip 5555
+
+# 2. Узнать IP телефона в текущей Wi-Fi сети и подключиться
+& 'C:\Users\freed\AppData\Local\Android\Sdk\platform-tools\adb.exe' connect <PHONE_IP>:5555
+
+# 3. Проверить, что устройство видно по сети
+& 'C:\Users\freed\AppData\Local\Android\Sdk\platform-tools\adb.exe' devices
+```
+
+Пример для текущего телефона:
+
+```powershell
+& 'C:\Users\freed\AppData\Local\Android\Sdk\platform-tools\adb.exe' connect 192.168.0.193:5555
+```
+
+Переустановка debug-сборки на телефон после подключения по Wi-Fi:
+
+```powershell
+cd f:\pet-projects\assistant\android-app
+.\gradlew.bat :app:installDebug
+```
+
+Если нужно сначала снести установленную debug-версию:
+
+```powershell
+& 'C:\Users\freed\AppData\Local\Android\Sdk\platform-tools\adb.exe' uninstall com.assistant.app
+cd f:\pet-projects\assistant\android-app
+.\gradlew.bat :app:installDebug
+```
+
+Примечания:
+
+- ПК может быть подключён к роутеру по кабелю, а телефон по Wi-Fi. Главное, чтобы они были в одной локальной сети.
+- После смены Wi-Fi или перезагрузки роутера IP телефона может измениться, тогда нужно повторить `adb connect`.
+- Если `adb` не добавлен в `PATH`, использовать полный путь к `adb.exe`, как в командах выше.
+
 ## 4. Windows
 
 Сборка:

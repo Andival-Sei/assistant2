@@ -1,4 +1,39 @@
 export type DashboardSection = "home" | "finance" | "health" | "tasks" | "settings";
+export type DashboardSubsection =
+  | "summary"
+  | "today"
+  | "insights"
+  | "overview"
+  | "accounts"
+  | "transactions"
+  | "settings"
+  | "habits"
+  | "metrics"
+  | "records"
+  | "focus"
+  | "board"
+  | "archive"
+  | "profile"
+  | "preferences"
+  | "security";
+
+export type DashboardNavItem = {
+  id: DashboardSubsection;
+  label: string;
+};
+
+export type DashboardSectionConfig = {
+  id: DashboardSection;
+  icon: string;
+  mobileIcon: string;
+  label: string;
+  title: string;
+  eyebrow: string;
+  badge: string;
+  note: string;
+  defaultSubsection: DashboardSubsection;
+  subsections: DashboardNavItem[];
+};
 
 export type FinanceTab = "overview" | "accounts" | "transactions" | "settings";
 export type Currency = "RUB" | "USD" | "EUR";

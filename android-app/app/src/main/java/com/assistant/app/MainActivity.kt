@@ -26,10 +26,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -65,6 +67,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -189,12 +192,39 @@ private enum class FinanceTab {
     Settings
 }
 
+private enum class DashboardSubsection {
+    Summary,
+    Today,
+    Insights,
+    Overview,
+    Accounts,
+    Transactions,
+    Settings,
+    Habits,
+    Metrics,
+    Records,
+    Focus,
+    Board,
+    Archive,
+    Profile,
+    Preferences,
+    Security
+}
+
+private data class DashboardNavItem(
+    val id: DashboardSubsection,
+    val label: String
+)
+
 private data class DashboardSectionText(
     val label: String,
     val title: String,
+    val eyebrow: String,
     val badge: String,
     val note: String,
-    val icon: String
+    val icon: String,
+    val defaultSubsection: DashboardSubsection,
+    val subsections: List<DashboardNavItem>
 )
 
 private data class FinanceOnboardingState(
@@ -446,6 +476,7 @@ private fun DashboardScreen(
     userEmail: String
 ) {
     var section by rememberSaveable { mutableStateOf(DashboardSection.Home) }
+    var subsection by rememberSaveable { mutableStateOf(DashboardSubsection.Summary) }
     var financeTab by rememberSaveable { mutableStateOf(FinanceTab.Overview) }
     var financeOverview by remember { mutableStateOf<FinanceOverview?>(null) }
     var financeLoading by remember { mutableStateOf(false) }
@@ -453,9 +484,33 @@ private fun DashboardScreen(
     var financeOnboardingStep by rememberSaveable { mutableStateOf(0) }
     var financeOnboarding by remember { mutableStateOf(FinanceOnboardingState()) }
     val sectionCopy = dashboardSectionCopy(isRussian)
+    val activeSection = sectionCopy[section]!!
+    val activeSubsection = activeSection.subsections.firstOrNull { it.id == subsection } ?: activeSection.subsections.first()
     val userName = rememberUserName(userEmail)
     val financeRepository = remember { FinanceRepository() }
     val coroutineScope = rememberCoroutineScope()
+    val setSectionState: (DashboardSection) -> Unit = { next ->
+        val nextSubsection = sectionCopy[next]!!.defaultSubsection
+        section = next
+        subsection = nextSubsection
+        if (next == DashboardSection.Finance) {
+            financeTab = when (nextSubsection) {
+                DashboardSubsection.Accounts -> FinanceTab.Accounts
+                DashboardSubsection.Transactions -> FinanceTab.Transactions
+                DashboardSubsection.Settings -> FinanceTab.Settings
+                else -> FinanceTab.Overview
+            }
+        }
+    }
+    val setFinanceTabState: (FinanceTab) -> Unit = { next ->
+        financeTab = next
+        subsection = when (next) {
+            FinanceTab.Overview -> DashboardSubsection.Overview
+            FinanceTab.Accounts -> DashboardSubsection.Accounts
+            FinanceTab.Transactions -> DashboardSubsection.Transactions
+            FinanceTab.Settings -> DashboardSubsection.Settings
+        }
+    }
     val completeFinanceOnboarding: (Boolean) -> Unit = { skip ->
         coroutineScope.launch {
             financeLoading = true
@@ -501,22 +556,39 @@ private fun DashboardScreen(
         val scrollState = rememberScrollState()
 
         if (compact) {
-            Column(
-                modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
+            Box(
+                modifier = Modifier.fillMaxSize()
             ) {
-                DashboardTopBar(
-                    isRussian = isRussian,
-                    themeMode = themeMode,
-                    onThemeChange = onThemeChange,
-                    onLanguageChange = onLanguageChange
-                )
                 Column(
                     modifier = Modifier
-                        .weight(1f)
-                        .verticalScroll(scrollState),
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                        .padding(bottom = 92.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
+                    DashboardTopBar(
+                        isRussian = isRussian,
+                        themeMode = themeMode,
+                        onThemeChange = onThemeChange,
+                        onLanguageChange = onLanguageChange
+                    )
+                    SecondaryTabRow(
+                        items = activeSection.subsections,
+                        active = activeSubsection.id,
+                        onSelect = { item ->
+                            subsection = item
+                            if (section == DashboardSection.Finance) {
+                                setFinanceTabState(
+                                    when (item) {
+                                        DashboardSubsection.Accounts -> FinanceTab.Accounts
+                                        DashboardSubsection.Transactions -> FinanceTab.Transactions
+                                        DashboardSubsection.Settings -> FinanceTab.Settings
+                                        else -> FinanceTab.Overview
+                                    }
+                                )
+                            }
+                        }
+                    )
                     if (section == DashboardSection.Finance) {
                         FinanceSectionCard(
                             isRussian = isRussian,
@@ -527,7 +599,7 @@ private fun DashboardScreen(
                             error = financeError,
                             onboardingStep = financeOnboardingStep,
                             onboarding = financeOnboarding,
-                            onTabChange = { financeTab = it },
+                            onTabChange = setFinanceTabState,
                             onOnboardingStepChange = { financeOnboardingStep = it },
                             onOnboardingChange = { financeOnboarding = it },
                             onCompleteOnboarding = completeFinanceOnboarding
@@ -535,7 +607,8 @@ private fun DashboardScreen(
                     } else {
                         DashboardPlaceholderCard(
                             section = section,
-                            copy = sectionCopy[section]!!,
+                            copy = activeSection,
+                            subsectionLabel = activeSubsection.label,
                             userName = userName,
                             compact = true,
                             userEmail = userEmail,
@@ -544,10 +617,29 @@ private fun DashboardScreen(
                         )
                     }
                 }
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .height(132.dp)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(
+                                    Color.Transparent,
+                                    MaterialTheme.colorScheme.background.copy(alpha = 0.72f),
+                                    MaterialTheme.colorScheme.background
+                                )
+                            )
+                        )
+                )
                 DashboardBottomBar(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 8.dp)
+                        .navigationBarsPadding(),
                     current = section,
                     labels = sectionCopy,
-                    onSelect = { section = it }
+                    onSelect = setSectionState
                 )
             }
         } else {
@@ -563,7 +655,7 @@ private fun DashboardScreen(
                     onSignOut = onSignOut,
                     current = section,
                     labels = sectionCopy,
-                    onSelect = { section = it }
+                    onSelect = setSectionState
                 )
 
                 Column(
@@ -576,6 +668,23 @@ private fun DashboardScreen(
                         onThemeChange = onThemeChange,
                         onLanguageChange = onLanguageChange
                     )
+                    SecondaryTabRow(
+                        items = activeSection.subsections,
+                        active = activeSubsection.id,
+                        onSelect = { item ->
+                            subsection = item
+                            if (section == DashboardSection.Finance) {
+                                setFinanceTabState(
+                                    when (item) {
+                                        DashboardSubsection.Accounts -> FinanceTab.Accounts
+                                        DashboardSubsection.Transactions -> FinanceTab.Transactions
+                                        DashboardSubsection.Settings -> FinanceTab.Settings
+                                        else -> FinanceTab.Overview
+                                    }
+                                )
+                            }
+                        }
+                    )
                     if (section == DashboardSection.Finance) {
                         FinanceSectionCard(
                             isRussian = isRussian,
@@ -586,7 +695,7 @@ private fun DashboardScreen(
                             error = financeError,
                             onboardingStep = financeOnboardingStep,
                             onboarding = financeOnboarding,
-                            onTabChange = { financeTab = it },
+                            onTabChange = setFinanceTabState,
                             onOnboardingStepChange = { financeOnboardingStep = it },
                             onOnboardingChange = { financeOnboarding = it },
                             onCompleteOnboarding = completeFinanceOnboarding
@@ -594,7 +703,8 @@ private fun DashboardScreen(
                     } else {
                         DashboardPlaceholderCard(
                             section = section,
-                            copy = sectionCopy[section]!!,
+                            copy = activeSection,
+                            subsectionLabel = activeSubsection.label,
                             userName = userName,
                             compact = false,
                             userEmail = userEmail,
@@ -645,6 +755,45 @@ private fun DashboardTopBar(
 }
 
 @Composable
+private fun SecondaryTabRow(
+    items: List<DashboardNavItem>,
+    active: DashboardSubsection,
+    onSelect: (DashboardSubsection) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items.forEach { item ->
+            val isActive = item.id == active
+            Surface(
+                shape = RoundedCornerShape(14.dp),
+                color = if (isActive) {
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
+                } else {
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)
+                },
+                border = BorderStroke(
+                    1.dp,
+                    if (isActive) MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f) else MaterialTheme.colorScheme.outline
+                ),
+                modifier = Modifier.clickable { onSelect(item.id) }
+            ) {
+                Text(
+                    text = item.label,
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isActive) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun DashboardSidebarCard(
     t: UiText,
     userEmail: String,
@@ -678,7 +827,8 @@ private fun DashboardSidebarCard(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 DashboardSection.entries.forEach { item ->
-                    DashboardNavChip(
+                    DashboardSectionNavButton(
+                        section = item,
                         text = labels[item]!!.label,
                         active = current == item,
                         onClick = { onSelect(item) }
@@ -1186,6 +1336,7 @@ private fun FinanceTabStrip(
 private fun DashboardPlaceholderCard(
     section: DashboardSection,
     copy: DashboardSectionText,
+    subsectionLabel: String,
     userName: String,
     compact: Boolean,
     userEmail: String,
@@ -1208,7 +1359,7 @@ private fun DashboardPlaceholderCard(
                 verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
                 Text(
-                    text = copy.label.uppercase(),
+                    text = copy.eyebrow.uppercase(),
                     fontSize = 11.sp,
                     letterSpacing = 1.sp,
                     color = MaterialTheme.colorScheme.secondary
@@ -1240,6 +1391,13 @@ private fun DashboardPlaceholderCard(
                     fontSize = 15.sp,
                     lineHeight = 24.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Text(
+                    text = subsectionLabel,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 if (section == DashboardSection.Settings) {
                     Spacer(modifier = Modifier.height(18.dp))
@@ -1426,26 +1584,76 @@ private fun DashboardNavChip(text: String, active: Boolean, onClick: () -> Unit)
 }
 
 @Composable
+private fun DashboardSectionNavButton(
+    section: DashboardSection,
+    text: String,
+    active: Boolean,
+    onClick: () -> Unit
+) {
+    val background = if (active) MaterialTheme.colorScheme.surface.copy(alpha = 0.86f) else Color.Transparent
+    val border = if (active) BorderStroke(1.dp, MaterialTheme.colorScheme.outline) else null
+
+    Surface(
+        modifier = Modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        color = background,
+        border = border
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = if (active) {
+                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.16f)
+                } else {
+                    MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+                }
+            ) {
+                Box(
+                    modifier = Modifier.size(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    DashboardSectionIcon(section = section, active = active)
+                }
+            }
+            Text(
+                text = text,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
 private fun DashboardBottomBar(
+    modifier: Modifier = Modifier,
     current: DashboardSection,
     labels: Map<DashboardSection, DashboardSectionText>,
     onSelect: (DashboardSection) -> Unit
 ) {
     Surface(
+        modifier = modifier,
         shape = RoundedCornerShape(999.dp),
-        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
+                .horizontalScroll(rememberScrollState())
+                .padding(horizontal = 6.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             DashboardSection.entries.forEach { item ->
                 val active = current == item
                 Surface(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.widthIn(min = 70.dp),
                     shape = RoundedCornerShape(999.dp),
                     color = if (active) {
                         MaterialTheme.colorScheme.secondary.copy(alpha = 0.14f)
@@ -1456,50 +1664,90 @@ private fun DashboardBottomBar(
                     Box(
                         modifier = Modifier
                             .clickable { onSelect(item) }
-                            .padding(horizontal = 8.dp, vertical = 12.dp),
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Surface(
-                                shape = CircleShape,
-                                color = if (active) {
-                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f)
-                                } else {
-                                    MaterialTheme.colorScheme.surface.copy(alpha = 0.45f)
-                                }
+                            Box(
+                                modifier = Modifier.size(18.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = labels[item]!!.icon,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                    fontSize = 9.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (active) {
-                                        MaterialTheme.colorScheme.onSurface
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
-                                    }
-                                )
+                                DashboardSectionIcon(section = item, active = active)
                             }
-                        Text(
-                            text = labels[item]!!.label,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            lineHeight = 12.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                            textAlign = TextAlign.Center,
-                            color = if (active) {
-                                MaterialTheme.colorScheme.onSurface
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        )
+                            Text(
+                                text = labels[item]!!.label,
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = if (active) {
+                                    MaterialTheme.colorScheme.onSurface
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DashboardSectionIcon(section: DashboardSection, active: Boolean) {
+    val tint = if (active) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+    Canvas(modifier = Modifier.size(18.dp)) {
+        val strokeWidth = 1.8.dp.toPx()
+        when (section) {
+            DashboardSection.Home -> {
+                drawLine(tint, Offset(size.width * 0.18f, size.height * 0.48f), Offset(size.width * 0.5f, size.height * 0.2f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.82f, size.height * 0.48f), Offset(size.width * 0.5f, size.height * 0.2f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.26f, size.height * 0.44f), Offset(size.width * 0.26f, size.height * 0.8f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.74f, size.height * 0.44f), Offset(size.width * 0.74f, size.height * 0.8f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.26f, size.height * 0.8f), Offset(size.width * 0.74f, size.height * 0.8f), strokeWidth, cap = StrokeCap.Round)
+            }
+            DashboardSection.Finance -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(size.width * 0.14f, size.height * 0.22f),
+                    size = Size(size.width * 0.72f, size.height * 0.56f),
+                    cornerRadius = CornerRadius(4.dp.toPx(), 4.dp.toPx()),
+                    style = Stroke(width = strokeWidth)
+                )
+                drawLine(tint, Offset(size.width * 0.14f, size.height * 0.42f), Offset(size.width * 0.86f, size.height * 0.42f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.3f, size.height * 0.58f), Offset(size.width * 0.44f, size.height * 0.58f), strokeWidth, cap = StrokeCap.Round)
+            }
+            DashboardSection.Health -> {
+                val path = Path().apply {
+                    moveTo(size.width * 0.5f, size.height * 0.78f)
+                    cubicTo(size.width * 0.14f, size.height * 0.5f, size.width * 0.12f, size.height * 0.22f, size.width * 0.34f, size.height * 0.2f)
+                    cubicTo(size.width * 0.44f, size.height * 0.2f, size.width * 0.49f, size.height * 0.28f, size.width * 0.5f, size.height * 0.32f)
+                    cubicTo(size.width * 0.51f, size.height * 0.28f, size.width * 0.56f, size.height * 0.2f, size.width * 0.66f, size.height * 0.2f)
+                    cubicTo(size.width * 0.88f, size.height * 0.22f, size.width * 0.86f, size.height * 0.5f, size.width * 0.5f, size.height * 0.78f)
+                }
+                drawPath(path = path, color = tint, style = Stroke(width = strokeWidth))
+            }
+            DashboardSection.Tasks -> {
+                repeat(3) { index ->
+                    val y = size.height * (0.28f + index * 0.24f)
+                    drawCircle(tint, radius = 1.3.dp.toPx(), center = Offset(size.width * 0.22f, y))
+                    drawLine(tint, Offset(size.width * 0.34f, y), Offset(size.width * 0.82f, y), strokeWidth, cap = StrokeCap.Round)
+                }
+            }
+            DashboardSection.Settings -> {
+                drawCircle(tint, radius = size.minDimension * 0.17f, center = Offset(size.width / 2f, size.height / 2f), style = Stroke(width = strokeWidth))
+                drawLine(tint, Offset(size.width * 0.5f, size.height * 0.08f), Offset(size.width * 0.5f, size.height * 0.24f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.5f, size.height * 0.76f), Offset(size.width * 0.5f, size.height * 0.92f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.08f, size.height * 0.5f), Offset(size.width * 0.24f, size.height * 0.5f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.76f, size.height * 0.5f), Offset(size.width * 0.92f, size.height * 0.5f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.24f, size.height * 0.24f), Offset(size.width * 0.34f, size.height * 0.34f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.66f, size.height * 0.66f), Offset(size.width * 0.76f, size.height * 0.76f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.24f, size.height * 0.76f), Offset(size.width * 0.34f, size.height * 0.66f), strokeWidth, cap = StrokeCap.Round)
+                drawLine(tint, Offset(size.width * 0.66f, size.height * 0.34f), Offset(size.width * 0.76f, size.height * 0.24f), strokeWidth, cap = StrokeCap.Round)
             }
         }
     }
@@ -2269,37 +2517,73 @@ private fun dashboardSectionCopy(isRussian: Boolean): Map<DashboardSection, Dash
             DashboardSection.Home to DashboardSectionText(
                 label = "Главная",
                 title = "Главная",
+                eyebrow = "Command center",
                 badge = "В разработке",
                 note = "Раздел в разработке. Здесь появится главный обзор проекта, быстрые действия и персональная сводка.",
-                icon = "GL"
+                icon = "GL",
+                defaultSubsection = DashboardSubsection.Summary,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Summary, "Сводка"),
+                    DashboardNavItem(DashboardSubsection.Today, "Сегодня"),
+                    DashboardNavItem(DashboardSubsection.Insights, "Инсайты")
+                )
             ),
             DashboardSection.Finance to DashboardSectionText(
                 label = "Финансы",
                 title = "Финансы",
-                badge = "В разработке",
+                eyebrow = "Money workspace",
+                badge = "Live",
                 note = "Раздел в разработке. Здесь будут бюджеты, кошельки, транзакции и финансовая аналитика.",
-                icon = "FN"
+                icon = "FN",
+                defaultSubsection = DashboardSubsection.Overview,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Overview, "Обзор"),
+                    DashboardNavItem(DashboardSubsection.Accounts, "Счета"),
+                    DashboardNavItem(DashboardSubsection.Transactions, "Транзакции"),
+                    DashboardNavItem(DashboardSubsection.Settings, "Настройки")
+                )
             ),
             DashboardSection.Health to DashboardSectionText(
                 label = "Здоровье",
                 title = "Здоровье",
+                eyebrow = "Wellbeing",
                 badge = "В разработке",
                 note = "Раздел в разработке. Здесь появятся трекинг самочувствия, метрики и история состояния.",
-                icon = "ZD"
+                icon = "ZD",
+                defaultSubsection = DashboardSubsection.Habits,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Habits, "Привычки"),
+                    DashboardNavItem(DashboardSubsection.Metrics, "Метрики"),
+                    DashboardNavItem(DashboardSubsection.Records, "История")
+                )
             ),
             DashboardSection.Tasks to DashboardSectionText(
                 label = "Задачи",
                 title = "Задачи",
+                eyebrow = "Execution",
                 badge = "В разработке",
                 note = "Раздел в разработке. Здесь будут списки задач, статусы, приоритеты и рабочие потоки.",
-                icon = "TK"
+                icon = "TK",
+                defaultSubsection = DashboardSubsection.Focus,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Focus, "Фокус"),
+                    DashboardNavItem(DashboardSubsection.Board, "Доска"),
+                    DashboardNavItem(DashboardSubsection.Archive, "Архив")
+                )
             ),
             DashboardSection.Settings to DashboardSectionText(
                 label = "Настройки",
                 title = "Настройки",
-                badge = "В разработке",
+                eyebrow = "Control",
+                badge = "Secure",
                 note = "Раздел в разработке. Здесь будут параметры приложения, профиля и подключённых сервисов.",
-                icon = "NS"
+                icon = "NS",
+                defaultSubsection = DashboardSubsection.Profile,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Profile, "Профиль"),
+                    DashboardNavItem(DashboardSubsection.Preferences, "Параметры"),
+                    DashboardNavItem(DashboardSubsection.Security, "Безопасность")
+                )
             )
         )
     } else {
@@ -2307,37 +2591,73 @@ private fun dashboardSectionCopy(isRussian: Boolean): Map<DashboardSection, Dash
             DashboardSection.Home to DashboardSectionText(
                 label = "Home",
                 title = "Home",
+                eyebrow = "Command center",
                 badge = "In development",
                 note = "This section is in development. It will contain the main project overview, quick actions, and personal summary.",
-                icon = "HM"
+                icon = "HM",
+                defaultSubsection = DashboardSubsection.Summary,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Summary, "Summary"),
+                    DashboardNavItem(DashboardSubsection.Today, "Today"),
+                    DashboardNavItem(DashboardSubsection.Insights, "Insights")
+                )
             ),
             DashboardSection.Finance to DashboardSectionText(
                 label = "Finance",
                 title = "Finance",
-                badge = "In development",
+                eyebrow = "Money workspace",
+                badge = "Live",
                 note = "This section is in development. It will contain budgets, wallets, transactions, and financial analytics.",
-                icon = "FN"
+                icon = "FN",
+                defaultSubsection = DashboardSubsection.Overview,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Overview, "Overview"),
+                    DashboardNavItem(DashboardSubsection.Accounts, "Accounts"),
+                    DashboardNavItem(DashboardSubsection.Transactions, "Transactions"),
+                    DashboardNavItem(DashboardSubsection.Settings, "Settings")
+                )
             ),
             DashboardSection.Health to DashboardSectionText(
                 label = "Health",
                 title = "Health",
+                eyebrow = "Wellbeing",
                 badge = "In development",
                 note = "This section is in development. It will contain wellbeing tracking, metrics, and health history.",
-                icon = "HL"
+                icon = "HL",
+                defaultSubsection = DashboardSubsection.Habits,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Habits, "Habits"),
+                    DashboardNavItem(DashboardSubsection.Metrics, "Metrics"),
+                    DashboardNavItem(DashboardSubsection.Records, "History")
+                )
             ),
             DashboardSection.Tasks to DashboardSectionText(
                 label = "Tasks",
                 title = "Tasks",
+                eyebrow = "Execution",
                 badge = "In development",
                 note = "This section is in development. It will contain task lists, statuses, priorities, and work flows.",
-                icon = "TS"
+                icon = "TS",
+                defaultSubsection = DashboardSubsection.Focus,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Focus, "Focus"),
+                    DashboardNavItem(DashboardSubsection.Board, "Board"),
+                    DashboardNavItem(DashboardSubsection.Archive, "Archive")
+                )
             ),
             DashboardSection.Settings to DashboardSectionText(
                 label = "Settings",
                 title = "Settings",
-                badge = "In development",
+                eyebrow = "Control",
+                badge = "Secure",
                 note = "This section is in development. It will contain app, profile, and connected service settings.",
-                icon = "ST"
+                icon = "ST",
+                defaultSubsection = DashboardSubsection.Profile,
+                subsections = listOf(
+                    DashboardNavItem(DashboardSubsection.Profile, "Profile"),
+                    DashboardNavItem(DashboardSubsection.Preferences, "Preferences"),
+                    DashboardNavItem(DashboardSubsection.Security, "Security")
+                )
             )
         )
     }

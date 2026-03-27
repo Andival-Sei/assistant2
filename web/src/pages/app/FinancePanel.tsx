@@ -7,13 +7,6 @@ import {
   FinanceTab,
 } from "../../types";
 
-export const financeTabs: FinanceTab[] = [
-  "overview",
-  "accounts",
-  "transactions",
-  "settings",
-];
-
 export function formatMoney(
   minor: number,
   currency: Currency | null,
@@ -404,19 +397,6 @@ export function FinancePanel({
         <h3>{copy.title}</h3>
         <p>{copy.subtitle}</p>
       </div>
-
-      <nav className="finance-subnav" aria-label="Finance navigation">
-        {financeTabs.map((tab) => (
-          <button
-            key={tab}
-            className={`finance-subnav-item ${financeTab === tab ? "active" : ""}`}
-            type="button"
-            onClick={() => onTabChange(tab)}
-          >
-            {copy.tabs[tab]}
-          </button>
-        ))}
-      </nav>
 
       {financeTab === "overview" ? (
         <div className="finance-grid">

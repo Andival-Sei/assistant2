@@ -10,6 +10,8 @@
                 <ResourceDictionary x:Key="Light">
                     <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFFFF" />
+                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FFF8FBF9" />
+                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="InkBrush" Color="#FF09090B" />
                     <SolidColorBrush x:Key="MutedTextBrush" Color="#FF71717A" />
                     <SolidColorBrush x:Key="AccentBrush" Color="#FF10B981" />
@@ -24,6 +26,8 @@
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF0A0A0A" />
                     <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FF18181B" />
+                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FF171B20" />
+                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FF1E2127" />
                     <SolidColorBrush x:Key="InkBrush" Color="#FFFAFAFA" />
                     <SolidColorBrush x:Key="MutedTextBrush" Color="#FFA1A1AA" />
                     <SolidColorBrush x:Key="AccentBrush" Color="#FF00DC82" />
