@@ -1,0 +1,41 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#141E30"/>
+      <stop offset="100%" stop-color="#243B55"/>
+    </linearGradient>
+
+    <linearGradient id="wave1" x1="200" y1="512" x2="824" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#00C9FF"/>
+      <stop offset="100%" stop-color="#92FE9D"/>
+    </linearGradient>
+    
+    <linearGradient id="wave2" x1="200" y1="512" x2="824" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF512F"/>
+      <stop offset="100%" stop-color="#DD2476"/>
+    </linearGradient>
+
+    <linearGradient id="wave3" x1="200" y1="512" x2="824" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7F00FF"/>
+      <stop offset="100%" stop-color="#E100FF"/>
+    </linearGradient>
+
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="24" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <g filter="url(#glow)" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Wave 3 (Back) -->
+    <path d="M 224 512 Q 324 250 512 512 T 800 512" stroke="url(#wave3)" stroke-width="48" fill="none" opacity="0.6"/>
+    
+    <!-- Wave 2 (Middle) -->
+    <path d="M 224 512 Q 412 800 512 512 T 800 512" stroke="url(#wave2)" stroke-width="48" fill="none" opacity="0.8"/>
+    
+    <!-- Wave 1 (Front) -->
+    <path d="M 224 512 Q 412 350 512 512 T 800 512" stroke="url(#wave1)" stroke-width="48" fill="none"/>
+  </g>
+</svg>

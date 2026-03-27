@@ -1,0 +1,41 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1A1B26"/>
+      <stop offset="100%" stop-color="#0F101A"/>
+    </linearGradient>
+
+    <!-- Spark Gradients -->
+    <linearGradient id="spark1" x1="512" y1="180" x2="512" y2="844" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF5D5D"/>
+      <stop offset="100%" stop-color="#FF2A85"/>
+    </linearGradient>
+    <linearGradient id="spark2" x1="180" y1="512" x2="844" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4A90E2"/>
+      <stop offset="100%" stop-color="#9013FE"/>
+    </linearGradient>
+
+    <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="40" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  
+  <!-- Outer Glow Ring -->
+  <circle cx="512" cy="512" r="320" fill="none" stroke="rgba(255, 255, 255, 0.05)" stroke-width="40" filter="url(#glow)"/>
+
+  <!-- The Spark -->
+  <g filter="url(#glow)">
+    <!-- Vertical Diamond -->
+    <path d="M512 180C512 360 360 512 180 512C360 512 512 664 512 844C512 664 664 512 844 512C664 512 512 360 512 180Z" fill="url(#spark1)" opacity="0.9"/>
+    
+    <!-- Horizontal Diamond -->
+    <path d="M512 180C512 360 664 512 844 512C664 512 512 664 512 844C512 664 360 512 180 512C360 512 512 360 512 180Z" fill="url(#spark2)" opacity="0.9" style="mix-blend-mode: screen;"/>
+    
+    <circle cx="512" cy="512" r="80" fill="#FFFFFF" filter="blur(8px)"/>
+    <circle cx="512" cy="512" r="40" fill="#FFFFFF"/>
+  </g>
+</svg>

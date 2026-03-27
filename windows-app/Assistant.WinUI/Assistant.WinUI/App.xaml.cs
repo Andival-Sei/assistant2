@@ -1,23 +1,8 @@
-﻿using Microsoft.UI.Xaml;
-using Microsoft.UI.Xaml.Controls;
-using Microsoft.UI.Xaml.Controls.Primitives;
-using Microsoft.UI.Xaml.Data;
-using Microsoft.UI.Xaml.Input;
-using Microsoft.UI.Xaml.Media;
-using Microsoft.UI.Xaml.Navigation;
-using Microsoft.UI.Xaml.Shapes;
+using Microsoft.UI.Xaml;
+using Microsoft.Windows.AppLifecycle;
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.ApplicationModel;
+using System.Threading.Tasks;
 using Windows.ApplicationModel.Activation;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
 
 namespace Assistant.WinUI
 {
@@ -28,23 +13,53 @@ namespace Assistant.WinUI
     {
         private Window? _window;
 
-        /// <summary>
-        /// Initializes the singleton application object.  This is the first line of authored code
-        /// executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
         public App()
         {
             InitializeComponent();
+            AppInstance.GetCurrent().Activated += OnAppActivated;
         }
 
-        /// <summary>
-        /// Invoked when the application is launched.
-        /// </summary>
-        /// <param name="args">Details about the launch request and process.</param>
         protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
         {
             _window = new MainWindow();
             _window.Activate();
+            _ = HandleInitialActivationAsync();
+        }
+
+        private void OnAppActivated(object? sender, AppActivationArguments args)
+        {
+            var dispatcherQueue = _window?.DispatcherQueue;
+            if (dispatcherQueue == null)
+            {
+                _window ??= new MainWindow();
+                _window.Activate();
+                _ = HandleActivationAsync(args);
+                return;
+            }
+
+            dispatcherQueue.TryEnqueue(() =>
+            {
+                _window ??= new MainWindow();
+                _window.Activate();
+                _ = HandleActivationAsync(args);
+            });
+        }
+
+        private async Task HandleInitialActivationAsync()
+        {
+            await HandleActivationAsync(AppInstance.GetCurrent().GetActivatedEventArgs());
+        }
+
+        private async Task HandleActivationAsync(AppActivationArguments args)
+        {
+            if (args.Kind != ExtendedActivationKind.Protocol ||
+                args.Data is not ProtocolActivatedEventArgs protocolArgs ||
+                _window is not MainWindow mainWindow)
+            {
+                return;
+            }
+
+            await mainWindow.HandleProtocolActivationAsync(protocolArgs.Uri);
         }
     }
 }

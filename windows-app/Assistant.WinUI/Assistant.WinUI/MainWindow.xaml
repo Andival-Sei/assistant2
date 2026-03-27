@@ -3,7 +3,6 @@
     x:Class="Assistant.WinUI.MainWindow"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:Assistant.WinUI"
     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d"
@@ -15,26 +14,26 @@
 
     <Grid x:Name="RootGrid" Background="{ThemeResource PageBackgroundBrush}">
         <Grid IsHitTestVisible="False">
-            <Ellipse Width="520" Height="520" Opacity="0.3" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-120,-120,0,0">
+            <Ellipse Width="560" Height="560" Opacity="0.28" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-120,-120,0,0">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
-                        <GradientStop Color="#7FF0C2B2" Offset="0" />
-                        <GradientStop Color="#00F0C2B2" Offset="1" />
+                        <GradientStop Color="#7F19D48A" Offset="0" />
+                        <GradientStop Color="#0019D48A" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
-            <Ellipse Width="520" Height="520" Opacity="0.3" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-140,-160">
+            <Ellipse Width="560" Height="560" Opacity="0.28" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-140,-160">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
-                        <GradientStop Color="#7FB0DCD8" Offset="0" />
-                        <GradientStop Color="#00B0DCD8" Offset="1" />
+                        <GradientStop Color="#7F00DC82" Offset="0" />
+                        <GradientStop Color="#0000DC82" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
         </Grid>
 
         <ScrollViewer>
-            <Grid MaxWidth="1100" HorizontalAlignment="Center" Margin="20,24,20,80">
+            <Grid MaxWidth="1340" HorizontalAlignment="Center" Margin="20,24,20,48">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -49,53 +48,476 @@
                     <TextBlock x:Name="LogoText" Text="ASSISTANT" FontWeight="SemiBold" CharacterSpacing="200" Foreground="{ThemeResource InkBrush}" />
 
                     <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                        <Button x:Name="ThemeButton" Click="ThemeButton_Click" Padding="12,0" Height="32" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="16" />
-                        <Button x:Name="LangButton" Click="LangButton_Click" Padding="12,0" Height="32" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="16" />
+                        <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="18" Padding="4">
+                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                <Button x:Name="ThemeSystemButton" Click="ThemeSystemButton_Click" Width="36" Height="36" Padding="0" BorderThickness="0" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" CornerRadius="14">
+                                    <Viewbox Width="16" Height="16">
+                                        <Canvas Width="20" Height="20">
+                                            <Rectangle Canvas.Left="3" Canvas.Top="4" Width="14" Height="10" RadiusX="2.2" RadiusY="2.2" Stroke="{Binding Foreground, ElementName=ThemeSystemButton}" StrokeThickness="1.6" />
+                                            <Path Data="M7.2,16 L12.8,16" Stroke="{Binding Foreground, ElementName=ThemeSystemButton}" StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="ThemeLightButton" Click="ThemeLightButton_Click" Width="36" Height="36" Padding="0" BorderThickness="0" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" CornerRadius="14">
+                                    <Viewbox Width="16" Height="16">
+                                        <Canvas Width="20" Height="20">
+                                            <Ellipse Canvas.Left="6.4" Canvas.Top="6.4" Width="7.2" Height="7.2" Stroke="{Binding Foreground, ElementName=ThemeLightButton}" StrokeThickness="1.6" />
+                                            <Path Data="M10,1.8 L10,3.9 M10,16.1 L10,18.2 M18.2,10 L16.1,10 M3.9,10 L1.8,10 M15.8,4.2 L14.3,5.7 M5.7,14.3 L4.2,15.8 M15.8,15.8 L14.3,14.3 M5.7,5.7 L4.2,4.2"
+                                                  Stroke="{Binding Foreground, ElementName=ThemeLightButton}"
+                                                  StrokeThickness="1.6"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                                <Button x:Name="ThemeDarkButton" Click="ThemeDarkButton_Click" Width="36" Height="36" Padding="0" BorderThickness="0" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" CornerRadius="14">
+                                    <Viewbox Width="16" Height="16">
+                                        <Canvas Width="20" Height="20">
+                                            <Path Data="M13.9,3.4 A6.6,6.6 0 1 0 16.6,16 A7.4,7.4 0 1 1 13.9,3.4 Z"
+                                                  Stroke="{Binding Foreground, ElementName=ThemeDarkButton}"
+                                                  StrokeThickness="1.6"
+                                                  StrokeLineJoin="Round" />
+                                        </Canvas>
+                                    </Viewbox>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                        <Button x:Name="LangButton" Padding="12,0" Height="32" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="16">
+                            <Button.Flyout>
+                                <MenuFlyout>
+                                    <ToggleMenuFlyoutItem x:Name="RussianMenuItem" Click="RussianMenuItem_Click" />
+                                    <ToggleMenuFlyoutItem x:Name="EnglishMenuItem" Click="EnglishMenuItem_Click" />
+                                </MenuFlyout>
+                            </Button.Flyout>
+                        </Button>
                     </StackPanel>
                 </Grid>
 
-                <Grid Grid.Row="1" Margin="0,52,0,0" ColumnSpacing="40" VerticalAlignment="Center">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="1.2*" />
-                        <ColumnDefinition Width="0.8*" />
-                    </Grid.ColumnDefinitions>
+                <Grid Grid.Row="1" Margin="0,26,0,0">
+                    <Grid x:Name="AuthShell">
+                        <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+                            <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="24" Padding="24" MaxWidth="420" HorizontalAlignment="Center">
+                                <StackPanel x:Name="AuthFormPanel" Spacing="14">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform x:Name="AuthFormTranslate" />
+                                    </StackPanel.RenderTransform>
+                                    <StackPanel Spacing="6">
+                                        <TextBlock x:Name="AuthTitleText" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                        <TextBlock x:Name="AuthSubtitleText" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <Button x:Name="LoginTab" Click="LoginTab_Click" Padding="12,0" Height="30" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="14" />
+                                        <Button x:Name="RegisterTab" Click="RegisterTab_Click" Padding="12,0" Height="30" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" CornerRadius="14" />
+                                    </StackPanel>
 
-                    <StackPanel Spacing="16">
-                        <Border Background="{ThemeResource PillBackgroundBrush}" CornerRadius="999" Padding="10,6" HorizontalAlignment="Left">
-                            <TextBlock x:Name="HeroPill" FontSize="12" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
-                        </Border>
-                        <TextBlock x:Name="HeroTitle" FontSize="44" LineHeight="50" FontFamily="Georgia" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
-                        <TextBlock x:Name="HeroSubtitle" FontSize="16" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
-                        <TextBlock x:Name="HeroHint" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
-                    </StackPanel>
+                                    <StackPanel Spacing="6">
+                                        <TextBlock x:Name="EmailLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        <TextBox x:Name="EmailInput" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" />
+                                    </StackPanel>
 
-                    <Border Grid.Column="1" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="18" Padding="24" MaxWidth="380" HorizontalAlignment="Right">
-                        <StackPanel Spacing="14">
-                            <TextBlock x:Name="FormTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                    <StackPanel Spacing="6">
+                                        <TextBlock x:Name="PasswordLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        <Grid>
+                                            <PasswordBox x:Name="PasswordInput" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" Padding="14,0,48,0" />
+                                            <TextBox x:Name="PasswordTextInput" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" Padding="14,0,48,0" Visibility="Collapsed" />
+                                            <Button x:Name="TogglePasswordButton" Click="TogglePasswordButton_Click" Width="36" Height="36" Margin="0,0,8,0" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}">
+                                                <SymbolIcon Symbol="View" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
 
-                            <StackPanel Spacing="6">
-                                <TextBlock x:Name="EmailLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
-                                <TextBox x:Name="EmailInput" PlaceholderText="" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" />
+                                    <StackPanel x:Name="ConfirmPasswordPanel" Spacing="6" Visibility="Collapsed">
+                                        <TextBlock x:Name="ConfirmPasswordLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        <Grid>
+                                            <PasswordBox x:Name="ConfirmPasswordInput" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" Padding="14,0,48,0" />
+                                            <TextBox x:Name="ConfirmPasswordTextInput" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" Padding="14,0,48,0" Visibility="Collapsed" />
+                                            <Button x:Name="ToggleConfirmPasswordButton" Click="ToggleConfirmPasswordButton_Click" Width="36" Height="36" Margin="0,0,8,0" HorizontalAlignment="Right" VerticalAlignment="Center" BorderThickness="0" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}">
+                                                <SymbolIcon Symbol="View" />
+                                            </Button>
+                                        </Grid>
+                                    </StackPanel>
+
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox x:Name="RememberCheck" Content="" Foreground="{ThemeResource MutedTextBrush}" />
+                                        <HyperlinkButton x:Name="ForgotButton" Grid.Column="1" Content="" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </Grid>
+
+                                    <Button x:Name="SubmitButton" Padding="16,12" MinHeight="48" HorizontalAlignment="Stretch" Background="{ThemeResource PrimaryButtonBackgroundBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderThickness="0" CornerRadius="12" />
+                                    <Button x:Name="GoogleButton" Padding="16,12" MinHeight="48" HorizontalAlignment="Stretch" Background="{ThemeResource CardBackgroundBrush}" Foreground="{ThemeResource InkBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="12" Visibility="Collapsed" />
+                                    <HyperlinkButton x:Name="BackToLoginButton" Content="" Foreground="{ThemeResource MutedTextBrush}" Visibility="Collapsed" />
+                                    <TextBlock x:Name="StatusText" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="FormNote" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </Border>
+                        </Grid>
+                    </Grid>
+
+                    <Grid x:Name="DashboardShell" Visibility="Collapsed">
+                        <Grid ColumnSpacing="18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="260" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                <StackPanel Spacing="22">
+                                    <Border Width="48" Height="48" CornerRadius="18" Background="{ThemeResource AccentBrush}" HorizontalAlignment="Left">
+                                        <TextBlock Text="A" FontSize="20" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="{ThemeResource PageBackgroundBrush}" />
+                                    </Border>
+
+                                    <StackPanel Spacing="8">
+                                        <TextBlock x:Name="SidebarWorkspaceLabel" FontSize="11" Foreground="{ThemeResource MutedTextBrush}" CharacterSpacing="120" />
+                                        <TextBlock x:Name="SidebarTitle" FontSize="28" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                        <TextBlock x:Name="SidebarCopy" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="8">
+                                        <Button x:Name="NavOverviewButton" Click="NavOverviewButton_Click" Padding="14,12" HorizontalContentAlignment="Left" Background="{ThemeResource PageBackgroundBrush}" Foreground="{ThemeResource InkBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                        <Button x:Name="NavFinanceButton" Click="NavFinanceButton_Click" Padding="14,12" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" />
+                                        <Button x:Name="NavHealthButton" Click="NavHealthButton_Click" Padding="14,12" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" />
+                                        <Button x:Name="NavTasksButton" Click="NavTasksButton_Click" Padding="14,12" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" />
+                                        <Button x:Name="NavSettingsButton" Click="NavSettingsButton_Click" Padding="14,12" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" />
+                                    </StackPanel>
+
+                                    <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="18" Padding="14">
+                                        <StackPanel Spacing="6">
+                                            <TextBlock x:Name="SidebarUserLabel" FontSize="11" Foreground="{ThemeResource MutedTextBrush}" CharacterSpacing="120" />
+                                            <TextBlock x:Name="DashboardEmailText" FontSize="14" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" TextWrapping="Wrap" />
+                                            <TextBlock x:Name="SidebarUserBody" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Grid.Column="1" Spacing="18">
+                                <Grid x:Name="DashboardSummaryRow" ColumnSpacing="18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="280" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock x:Name="DashboardLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                            <TextBlock x:Name="DashboardWelcomeTitle" FontSize="42" LineHeight="46" FontWeight="ExtraBold" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="DashboardSubtitle" FontSize="14" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Grid.Column="1" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="24" Padding="18">
+                                        <StackPanel Spacing="8">
+                                            <Border Background="{ThemeResource PillBackgroundBrush}" CornerRadius="999" Padding="10,6" HorizontalAlignment="Left">
+                                                <TextBlock x:Name="DashboardStatusBadge" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
+                                            </Border>
+                                            <TextBlock x:Name="DashboardStatusTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="DashboardStatusBody" FontSize="12" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Border x:Name="PlaceholderCard" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="28" Opacity="1">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform x:Name="PlaceholderTranslate" />
+                                    </Border.RenderTransform>
+                                    <StackPanel Spacing="14" VerticalAlignment="Center">
+                                        <Border Background="{ThemeResource PillBackgroundBrush}" CornerRadius="999" Padding="10,6" HorizontalAlignment="Left">
+                                            <TextBlock x:Name="PlaceholderBadge" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
+                                        </Border>
+                                        <TextBlock x:Name="PlaceholderTitle" FontSize="34" FontWeight="ExtraBold" Foreground="{ThemeResource InkBrush}" />
+                                        <TextBlock x:Name="PlaceholderBody" FontSize="15" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                        <StackPanel x:Name="SettingsActionPanel" Visibility="Collapsed" Spacing="12" MaxWidth="420">
+                                            <Button x:Name="SettingsLogoutButton" Click="LogoutButton_Click" Padding="14,12" HorizontalAlignment="Stretch" Background="{ThemeResource AccentBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderBrush="{ThemeResource AccentBrush}" BorderThickness="1" CornerRadius="16" />
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+
+                                <StackPanel x:Name="FinanceContent" Visibility="Collapsed" Spacing="18">
+                                    <StackPanel.RenderTransform>
+                                        <TranslateTransform x:Name="FinanceTranslate" />
+                                    </StackPanel.RenderTransform>
+                                    <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Spacing="16">
+                                            <StackPanel Spacing="8">
+                                                <TextBlock x:Name="FinanceEyebrow" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                <TextBlock x:Name="FinanceTitle" FontSize="30" FontWeight="ExtraBold" Foreground="{ThemeResource InkBrush}" />
+                                                <TextBlock x:Name="FinanceSubtitle" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                                <Button x:Name="FinanceOverviewTabButton" Click="FinanceOverviewTabButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                                <Button x:Name="FinanceAccountsTabButton" Click="FinanceAccountsTabButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                                <Button x:Name="FinanceTransactionsTabButton" Click="FinanceTransactionsTabButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                                <Button x:Name="FinanceSettingsTabButton" Click="FinanceSettingsTabButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border x:Name="FinanceLoadingCard" Visibility="Collapsed" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                                            <ProgressRing x:Name="FinanceProgressRing" Width="24" Height="24" IsActive="True" />
+                                            <TextBlock x:Name="FinanceLoadingText" FontSize="14" Foreground="{ThemeResource MutedTextBrush}" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border x:Name="FinanceErrorCard" Visibility="Collapsed" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Spacing="10">
+                                            <TextBlock x:Name="FinanceErrorTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="FinanceErrorText" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource ErrorTextBrush}" />
+                                            <Button x:Name="FinanceRetryButton" Click="FinanceRetryButton_Click" Padding="14,8" HorizontalAlignment="Left" Background="{ThemeResource PrimaryButtonBackgroundBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderThickness="0" CornerRadius="16" />
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border x:Name="FinanceOnboardingCard" Visibility="Collapsed" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Spacing="14">
+                                            <Border Background="{ThemeResource PillBackgroundBrush}" CornerRadius="999" Padding="10,6" HorizontalAlignment="Left">
+                                                <TextBlock x:Name="FinanceOnboardingBadge" FontSize="11" FontWeight="SemiBold" Foreground="{ThemeResource AccentBrush}" />
+                                            </Border>
+                                            <TextBlock x:Name="FinanceOnboardingTitle" FontSize="24" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="FinanceOnboardingSubtitle" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+
+                                            <StackPanel x:Name="FinanceOnboardingStepOnePanel" Spacing="10">
+                                                <TextBlock x:Name="FinanceCurrencyLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                <ComboBox x:Name="FinanceCurrencyCombo" />
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="FinanceOnboardingStepTwoPanel" Visibility="Collapsed" Spacing="10">
+                                                <TextBlock x:Name="FinanceBankLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                <ComboBox x:Name="FinanceBankCombo" />
+                                                <TextBox x:Name="FinancePrimaryBalanceInput" />
+                                            </StackPanel>
+
+                                            <StackPanel x:Name="FinanceOnboardingStepThreePanel" Visibility="Collapsed" Spacing="10">
+                                                <TextBlock x:Name="FinanceCashLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                <TextBox x:Name="FinanceCashInput" />
+                                            </StackPanel>
+
+                                            <StackPanel Orientation="Horizontal" Spacing="10">
+                                                <Button x:Name="FinanceBackButton" Click="FinanceBackButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                                <Button x:Name="FinanceNextButton" Click="FinanceNextButton_Click" Padding="14,8" Background="{ThemeResource PrimaryButtonBackgroundBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderThickness="0" CornerRadius="16" />
+                                                <Button x:Name="FinanceSkipButton" Click="FinanceSkipButton_Click" Padding="14,8" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Grid x:Name="FinanceDataGrid" Visibility="Collapsed" ColumnSpacing="18">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="1.15*" />
+                                            <ColumnDefinition Width="0.85*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Spacing="18">
+                                            <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock x:Name="FinanceBalanceLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                    <TextBlock x:Name="FinanceBalanceText" FontSize="32" FontWeight="ExtraBold" Foreground="{ThemeResource InkBrush}" />
+                                                    <TextBlock x:Name="FinanceBalanceHint" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border x:Name="FinanceAccountsCard" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                                <StackPanel Spacing="14">
+                                                    <TextBlock x:Name="FinanceAccountsTitle" FontSize="20" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                    <StackPanel x:Name="FinanceAccountsPanel" Spacing="10" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1" Spacing="18">
+                                            <Border x:Name="FinanceTransactionsCard" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                                <StackPanel Spacing="14">
+                                                    <TextBlock x:Name="FinanceTransactionsTitle" FontSize="20" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                    <StackPanel x:Name="FinanceTransactionsPanel" Spacing="10" />
+                                                </StackPanel>
+                                            </Border>
+
+                                            <Border x:Name="FinanceSettingsCard" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="FinanceSettingsTitle" FontSize="20" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                    <TextBlock x:Name="FinanceSettingsText" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </StackPanel>
+                                    </Grid>
+                                </StackPanel>
+
+                                <Grid x:Name="LegacyMetricsGrid" Visibility="Collapsed" ColumnSpacing="14" RowSpacing="14">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="22" Padding="18">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock x:Name="MetricOneLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            <TextBlock x:Name="MetricOneValue" FontSize="28" FontWeight="Bold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="MetricOneDetail" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="1" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="22" Padding="18">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock x:Name="MetricTwoLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            <TextBlock x:Name="MetricTwoValue" FontSize="28" FontWeight="Bold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="MetricTwoDetail" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="2" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="22" Padding="18">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock x:Name="MetricThreeLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            <TextBlock x:Name="MetricThreeValue" FontSize="28" FontWeight="Bold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="MetricThreeDetail" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                    <Border Grid.Column="3" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="22" Padding="18">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock x:Name="MetricFourLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            <TextBlock x:Name="MetricFourValue" FontSize="28" FontWeight="Bold" Foreground="{ThemeResource InkBrush}" />
+                                            <TextBlock x:Name="MetricFourDetail" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                        </StackPanel>
+                                    </Border>
+                                </Grid>
+
+                                <Grid x:Name="LegacyDetailsGrid" Visibility="Collapsed" ColumnSpacing="18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="1.25*" />
+                                        <ColumnDefinition Width="0.75*" />
+                                    </Grid.ColumnDefinitions>
+
+                                    <Border Grid.Column="0" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                        <StackPanel Spacing="16">
+                                            <Grid>
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <StackPanel>
+                                                    <TextBlock x:Name="ActivityLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                    <TextBlock x:Name="ActivityTitle" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                </StackPanel>
+                                                <TextBlock x:Name="ActivityHint" Grid.Column="1" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                            </Grid>
+
+                                            <StackPanel Spacing="16">
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Width="12" Height="12" Fill="{ThemeResource AccentBrush}" Margin="0,6,0,0" />
+                                                    <StackPanel Grid.Column="1" Spacing="4">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock x:Name="ActivityOneTitle" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                            <TextBlock x:Name="ActivityOneTime" Grid.Column="1" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                                        </Grid>
+                                                        <TextBlock x:Name="ActivityOneBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Width="12" Height="12" Fill="{ThemeResource AccentBrush}" Margin="0,6,0,0" />
+                                                    <StackPanel Grid.Column="1" Spacing="4">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock x:Name="ActivityTwoTitle" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                            <TextBlock x:Name="ActivityTwoTime" Grid.Column="1" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                                        </Grid>
+                                                        <TextBlock x:Name="ActivityTwoBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                    </StackPanel>
+                                                </Grid>
+
+                                                <Grid ColumnSpacing="12">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="14" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Ellipse Width="12" Height="12" Fill="{ThemeResource AccentBrush}" Margin="0,6,0,0" />
+                                                    <StackPanel Grid.Column="1" Spacing="4">
+                                                        <Grid>
+                                                            <Grid.ColumnDefinitions>
+                                                                <ColumnDefinition Width="*" />
+                                                                <ColumnDefinition Width="Auto" />
+                                                            </Grid.ColumnDefinitions>
+                                                            <TextBlock x:Name="ActivityThreeTitle" FontSize="15" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                            <TextBlock x:Name="ActivityThreeTime" Grid.Column="1" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
+                                                        </Grid>
+                                                        <TextBlock x:Name="ActivityThreeBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                    </StackPanel>
+                                                </Grid>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
+
+                                    <StackPanel Grid.Column="1" Spacing="18">
+                                        <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                            <StackPanel Spacing="12">
+                                                <TextBlock x:Name="FocusLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                <TextBlock x:Name="FocusTitle" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                <StackPanel Spacing="10">
+                                                    <TextBlock x:Name="FocusOne" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                                                    <TextBlock x:Name="FocusTwo" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                                                    <TextBlock x:Name="FocusThree" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                            <StackPanel Spacing="12">
+                                                <TextBlock x:Name="InsightLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                <TextBlock x:Name="InsightTitle" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
+                                                    <StackPanel Spacing="8">
+                                                        <TextBlock x:Name="InsightLead" FontSize="15" FontWeight="SemiBold" TextWrapping="Wrap" Foreground="{ThemeResource InkBrush}" />
+                                                        <TextBlock x:Name="InsightBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                    </StackPanel>
+                                                </Border>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="28" Padding="22">
+                                            <StackPanel Spacing="12">
+                                                <TextBlock x:Name="StateLabel" FontSize="11" Foreground="{ThemeResource AccentBrush}" CharacterSpacing="120" />
+                                                <TextBlock x:Name="StateTitle" FontSize="22" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                <Grid>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="Web" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                    <TextBlock x:Name="StateWeb" Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                    <TextBlock Grid.Row="1" Text="Windows" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" Margin="0,10,0,0" />
+                                                    <TextBlock x:Name="StateWindows" Grid.Row="1" Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" Margin="0,10,0,0" />
+                                                    <TextBlock Grid.Row="2" Text="Android" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" Margin="0,10,0,0" />
+                                                    <TextBlock x:Name="StateAndroid" Grid.Row="2" Grid.Column="1" FontSize="13" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" Margin="0,10,0,0" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </Grid>
                             </StackPanel>
-
-                            <StackPanel Spacing="6">
-                                <TextBlock x:Name="PasswordLabel" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" />
-                                <PasswordBox x:Name="PasswordInput" PlaceholderText="" Background="{ThemeResource InputBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" CornerRadius="10" />
-                            </StackPanel>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <CheckBox x:Name="RememberCheck" Content="" Foreground="{ThemeResource MutedTextBrush}" />
-                                <HyperlinkButton x:Name="ForgotButton" Grid.Column="1" Content="" Foreground="{ThemeResource MutedTextBrush}" />
-                            </Grid>
-
-                            <Button x:Name="SubmitButton" Padding="12,8" Background="{ThemeResource PrimaryButtonBackgroundBrush}" Foreground="{ThemeResource PrimaryButtonForegroundBrush}" BorderThickness="0" CornerRadius="12" />
-                            <TextBlock x:Name="FormNote" FontSize="12" Foreground="{ThemeResource MutedTextBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Border>
+                        </Grid>
+                    </Grid>
                 </Grid>
             </Grid>
         </ScrollViewer>

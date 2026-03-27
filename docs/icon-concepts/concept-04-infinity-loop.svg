@@ -1,0 +1,34 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0F2027"/>
+      <stop offset="50%" stop-color="#203A43"/>
+      <stop offset="100%" stop-color="#2C5364"/>
+    </linearGradient>
+
+    <linearGradient id="loop" x1="200" y1="300" x2="824" y2="724" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FCEABB"/>
+      <stop offset="100%" stop-color="#F8B500"/>
+    </linearGradient>
+
+    <linearGradient id="loop2" x1="824" y1="300" x2="200" y2="724" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#FF416C"/>
+      <stop offset="100%" stop-color="#FF4B2B"/>
+    </linearGradient>
+
+    <filter id="shadow">
+      <feDropShadow dx="0" dy="20" stdDeviation="30" flood-color="#000000" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+
+  <g filter="url(#shadow)" fill="none" stroke-width="80" stroke-linecap="round">
+    <!-- Left loop part -->
+    <path d="M 512 512 C 412 300 212 300 212 512 C 212 724 412 724 512 512" stroke="url(#loop)"/>
+    <!-- Right loop part -->
+    <path d="M 512 512 C 612 724 812 724 812 512 C 812 300 612 300 512 512" stroke="url(#loop2)"/>
+  </g>
+  
+  <circle cx="512" cy="512" r="30" fill="#FFFFFF" filter="blur(2px)"/>
+</svg>
