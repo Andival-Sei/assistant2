@@ -17,16 +17,16 @@
             <Ellipse Width="560" Height="560" Opacity="0.28" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-120,-120,0,0">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
-                        <GradientStop Color="#7F19D48A" Offset="0" />
-                        <GradientStop Color="#0019D48A" Offset="1" />
+                        <GradientStop Color="#6618D29A" Offset="0" />
+                        <GradientStop Color="#0018D29A" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
             <Ellipse Width="560" Height="560" Opacity="0.28" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-140,-160">
                 <Ellipse.Fill>
                     <RadialGradientBrush>
-                        <GradientStop Color="#7F00DC82" Offset="0" />
-                        <GradientStop Color="#0000DC82" Offset="1" />
+                        <GradientStop Color="#4C10B981" Offset="0" />
+                        <GradientStop Color="#0010B981" Offset="1" />
                     </RadialGradientBrush>
                 </Ellipse.Fill>
             </Ellipse>
@@ -186,7 +186,7 @@
                                         </StackPanel>
 
                                         <StackPanel Spacing="8">
-                                            <Button x:Name="NavOverviewButton" Click="NavOverviewButton_Click" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="{ThemeResource StageBackgroundBrush}" Foreground="{ThemeResource InkBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16">
+                                            <Button x:Name="NavOverviewButton" Click="NavOverviewButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="{ThemeResource StageBackgroundBrush}" Foreground="{ThemeResource InkBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16">
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                                     <Border x:Name="NavOverviewIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
                                                         <SymbolIcon Symbol="Home" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -194,7 +194,7 @@
                                                     <TextBlock x:Name="NavOverviewLabel" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button x:Name="NavFinanceButton" Click="NavFinanceButton_Click" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
+                                            <Button x:Name="NavFinanceButton" Click="NavFinanceButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                                     <Border x:Name="NavFinanceIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
                                                         <SymbolIcon Symbol="Shop" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -202,7 +202,7 @@
                                                     <TextBlock x:Name="NavFinanceLabel" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button x:Name="NavHealthButton" Click="NavHealthButton_Click" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
+                                            <Button x:Name="NavHealthButton" Click="NavHealthButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                                     <Border x:Name="NavHealthIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
                                                         <SymbolIcon Symbol="Favorite" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -210,7 +210,7 @@
                                                     <TextBlock x:Name="NavHealthLabel" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
-                                            <Button x:Name="NavTasksButton" Click="NavTasksButton_Click" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
+                                            <Button x:Name="NavTasksButton" Click="NavTasksButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
                                                 <StackPanel Orientation="Horizontal" Spacing="12">
                                                     <Border x:Name="NavTasksIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
                                                         <SymbolIcon Symbol="Bullets" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -218,10 +218,18 @@
                                                     <TextBlock x:Name="NavTasksLabel" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
+                                            <Button x:Name="NavChatButton" Click="NavChatButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16">
+                                                <StackPanel Orientation="Horizontal" Spacing="12">
+                                                    <Border x:Name="NavChatIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
+                                                        <SymbolIcon Symbol="Message" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                                    </Border>
+                                                    <TextBlock x:Name="NavChatLabel" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
                                         </StackPanel>
                                     </StackPanel>
 
-                                    <Button x:Name="NavSettingsButton" Grid.Row="2" Click="NavSettingsButton_Click" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" Margin="0,16,0,0">
+                                    <Button x:Name="NavSettingsButton" Grid.Row="2" Click="NavSettingsButton_Click" Width="220" Padding="12,10" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Background="Transparent" Foreground="{ThemeResource MutedTextBrush}" BorderBrush="Transparent" BorderThickness="1" CornerRadius="16" Margin="0,16,0,0">
                                         <StackPanel Orientation="Horizontal" Spacing="12">
                                             <Border x:Name="NavSettingsIconBox" Width="40" Height="40" CornerRadius="14" Background="{ThemeResource StageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1">
                                                 <SymbolIcon Symbol="Setting" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -259,6 +267,12 @@
                                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                                     <SymbolIcon Symbol="Bullets" />
                                                     <TextBlock x:Name="CompactNavTasksLabel" VerticalAlignment="Center" />
+                                                </StackPanel>
+                                            </Button>
+                                            <Button x:Name="CompactNavChatButton" Click="NavChatButton_Click" Padding="12,8" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16">
+                                                <StackPanel Orientation="Horizontal" Spacing="8">
+                                                    <SymbolIcon Symbol="Message" />
+                                                    <TextBlock x:Name="CompactNavChatLabel" VerticalAlignment="Center" />
                                                 </StackPanel>
                                             </Button>
                                             <Button x:Name="CompactNavSettingsButton" Click="NavSettingsButton_Click" Padding="12,8" Background="{ThemeResource CardBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="16">

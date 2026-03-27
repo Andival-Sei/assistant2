@@ -78,6 +78,17 @@ namespace Assistant.WinUI
                             new ShellNavItem { Key = "archive", Label = "Архив" },
                         }
                     },
+                    ["Chat"] = new ShellSectionConfig
+                    {
+                        Eyebrow = "AI workspace",
+                        Badge = "Beta",
+                        Note = "Здесь сохранится отдельная AI-сцена для общения с ассистентом. Пока раздел находится в разработке.",
+                        DefaultSubsection = "chat",
+                        Subsections = new[]
+                        {
+                            new ShellNavItem { Key = "chat", Label = "Диалог" },
+                        }
+                    },
                     ["Settings"] = new ShellSectionConfig
                     {
                         Eyebrow = "Control",
@@ -147,6 +158,17 @@ namespace Assistant.WinUI
                         new ShellNavItem { Key = "focus", Label = "Focus" },
                         new ShellNavItem { Key = "board", Label = "Board" },
                         new ShellNavItem { Key = "archive", Label = "Archive" },
+                    }
+                },
+                ["Chat"] = new ShellSectionConfig
+                {
+                    Eyebrow = "AI workspace",
+                    Badge = "Beta",
+                    Note = "This dedicated AI scene keeps the current assistant-style shell. For now the section stays in development.",
+                    DefaultSubsection = "chat",
+                    Subsections = new[]
+                    {
+                        new ShellNavItem { Key = "chat", Label = "Dialog" },
                     }
                 },
                 ["Settings"] = new ShellSectionConfig

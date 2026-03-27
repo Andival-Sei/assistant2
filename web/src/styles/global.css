@@ -2,23 +2,23 @@
 
 :root {
   color-scheme: dark;
-  --bg: #0a0a0a;
-  --bg-elevated: #121316;
-  --bg-overlay: rgba(18, 19, 22, 0.78);
-  --panel: #18181b;
-  --panel-strong: #18181b;
-  --stroke: #27272a;
-  --stroke-strong: #32343a;
-  --ink: #fafafa;
-  --muted: #a1a1aa;
-  --muted-strong: #c4c7ce;
-  --accent: #00dc82;
+  --bg: #0f151c;
+  --bg-elevated: #151d25;
+  --bg-overlay: rgba(21, 29, 37, 0.84);
+  --panel: #1b242e;
+  --panel-strong: #212b36;
+  --stroke: #2c3743;
+  --stroke-strong: #394654;
+  --ink: #f3f7fa;
+  --muted: #8f9dac;
+  --muted-strong: #c5ced7;
+  --accent: #18d29a;
   --accent-2: #10b981;
-  --accent-soft: rgba(0, 220, 130, 0.14);
+  --accent-soft: rgba(24, 210, 154, 0.14);
   --success: #22c55e;
   --warning: #f59e0b;
   --danger: #fb7185;
-  --shadow: 0 14px 32px rgba(0, 0, 0, 0.18);
+  --shadow: 0 18px 36px rgba(3, 8, 16, 0.24);
   --radius-12: 12px;
   --radius-16: 16px;
   --radius-20: 20px;
@@ -40,23 +40,23 @@
 
 [data-theme="light"] {
   color-scheme: light;
-  --bg: #ffffff;
-  --bg-elevated: #f5f7fa;
-  --bg-overlay: rgba(255, 255, 255, 0.78);
-  --panel: #ffffff;
+  --bg: #edf2f6;
+  --bg-elevated: #f4f7fa;
+  --bg-overlay: rgba(244, 247, 250, 0.9);
+  --panel: #f7fafc;
   --panel-strong: #ffffff;
-  --stroke: #e4e4e7;
-  --stroke-strong: #d4d8df;
-  --ink: #09090b;
-  --muted: #71717a;
-  --muted-strong: #4b5563;
+  --stroke: #d7e0e8;
+  --stroke-strong: #c7d1db;
+  --ink: #18212b;
+  --muted: #667789;
+  --muted-strong: #4e5b6a;
   --accent: #10b981;
-  --accent-2: #059669;
-  --accent-soft: rgba(16, 185, 129, 0.12);
+  --accent-2: #0f9f74;
+  --accent-soft: rgba(16, 185, 129, 0.14);
   --success: #16a34a;
   --warning: #d97706;
   --danger: #e11d48;
-  --shadow: 0 14px 30px rgba(15, 23, 42, 0.06);
+  --shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
 }
 
 * {
@@ -171,8 +171,8 @@ input {
   background: var(--accent);
   color: #081312;
   font-weight: 600;
-  border: 1px solid rgba(35, 224, 165, 0.4);
-  box-shadow: 0 12px 28px rgba(35, 224, 165, 0.25);
+  border: 1px solid color-mix(in srgb, var(--accent) 48%, var(--stroke));
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .secondary-btn {
@@ -182,7 +182,7 @@ input {
   padding: 8px 16px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 68%, transparent);
   color: var(--ink);
   font-weight: 600;
 }
@@ -194,7 +194,7 @@ input {
   padding: 4px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 68%, transparent);
   backdrop-filter: blur(8px);
 }
 
@@ -212,7 +212,7 @@ input {
 }
 
 .toggle-btn.active {
-  background: rgba(35, 224, 165, 0.18);
+  background: var(--accent-soft);
   color: var(--ink);
   font-weight: 600;
   cursor: default;
@@ -225,7 +225,7 @@ input {
   padding: 4px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
   backdrop-filter: blur(12px);
 }
 
@@ -251,9 +251,9 @@ input {
 }
 
 .theme-switcher-btn.active {
-  background: rgba(35, 224, 165, 0.18);
+  background: var(--accent-soft);
   color: var(--ink);
-  box-shadow: inset 0 0 0 1px rgba(35, 224, 165, 0.24);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 26%, transparent);
 }
 
 .language-menu {
@@ -268,7 +268,7 @@ input {
   padding: 0 10px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--panel) 72%, transparent);
   color: var(--ink);
   cursor: pointer;
   backdrop-filter: blur(12px);
@@ -575,7 +575,11 @@ input {
 .card.auth-card {
   width: 100%;
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-strong) 94%, transparent),
+      color-mix(in srgb, var(--panel) 96%, transparent)
+    ),
     var(--panel-strong);
   border: 1px solid var(--stroke);
   border-radius: 1.75rem;
@@ -606,7 +610,7 @@ input {
   padding: 4px;
   border-radius: 999px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
 }
 
 .auth-mode-tab {
@@ -670,7 +674,7 @@ input {
   height: 34px;
   border: none;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--panel) 78%, transparent);
   color: var(--muted);
   cursor: pointer;
   display: inline-flex;
@@ -680,7 +684,7 @@ input {
 }
 
 [data-theme="light"] .field-visibility-btn {
-  background: rgba(8, 12, 18, 0.04);
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
 }
 
 .field-visibility-icon {
@@ -700,14 +704,14 @@ input {
   padding: 12px 14px;
   border-radius: 12px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 76%, transparent);
   color: inherit;
   font-size: 15px;
   outline: none;
 }
 
 [data-theme="light"] input {
-  background: rgba(8, 12, 18, 0.04);
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
 }
 
 .field-note {
@@ -797,7 +801,7 @@ input {
   padding: 10px 14px;
   border-radius: 12px;
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
   color: var(--ink);
   font-weight: 600;
   cursor: pointer;
@@ -809,7 +813,7 @@ input {
 }
 
 [data-theme="light"] .google-btn {
-  background: rgba(8, 12, 18, 0.02);
+  background: color-mix(in srgb, var(--panel) 88%, transparent);
 }
 
 .cta {
@@ -1005,7 +1009,7 @@ input {
 
 .dashboard-nav-item.active {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--panel-strong) 94%, var(--accent-soft));
   border-color: var(--stroke);
 }
 
@@ -1013,7 +1017,7 @@ input {
   margin-top: auto;
   padding: 14px;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
   border: 1px solid var(--stroke);
   display: grid;
   gap: 8px;
@@ -1031,7 +1035,7 @@ input {
 
 .dashboard-logout {
   border: 1px solid var(--stroke);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
   color: var(--ink);
   border-radius: 16px;
   padding: 12px 14px;
@@ -1090,7 +1094,7 @@ input {
   width: fit-content;
   padding: 6px 10px;
   border-radius: 999px;
-  background: rgba(35, 224, 165, 0.12);
+  background: var(--accent-soft);
   color: var(--accent);
   font-size: 11px;
   font-weight: 700;
@@ -1178,7 +1182,7 @@ input {
   border-radius: 999px;
   margin-top: 8px;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
-  box-shadow: 0 0 0 6px rgba(35, 224, 165, 0.08);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .dashboard-activity-row {
@@ -1805,12 +1809,12 @@ input {
   top: 0;
   height: 100vh;
   padding: 0;
-  background: rgba(23, 27, 32, 0.94);
+  background: var(--bg-elevated);
   backdrop-filter: blur(22px);
 }
 
 [data-theme="light"] .dashboard-left-rail {
-  background: rgba(248, 251, 249, 0.94);
+  background: var(--bg-elevated);
 }
 
 .dashboard-left-rail-inner {
@@ -1870,22 +1874,22 @@ input {
 
 .dashboard-nav-item:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.035);
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
 }
 
 [data-theme="light"] .dashboard-nav-item:hover {
-  background: rgba(8, 12, 18, 0.03);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
 }
 
 .dashboard-nav-item.active {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--panel-strong) 94%, var(--accent-soft));
+  border-color: var(--stroke);
 }
 
 [data-theme="light"] .dashboard-nav-item.active {
-  background: rgba(8, 12, 18, 0.04);
-  border-color: rgba(8, 12, 18, 0.06);
+  background: var(--panel-strong);
+  border-color: var(--stroke);
 }
 
 .dashboard-nav-icon {
@@ -1894,14 +1898,14 @@ input {
   border-radius: 14px;
   display: grid;
   place-items: center;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--stroke);
   color: var(--muted-strong);
 }
 
 [data-theme="light"] .dashboard-nav-icon {
-  background: rgba(8, 12, 18, 0.03);
-  border-color: rgba(8, 12, 18, 0.05);
+  background: var(--panel-strong);
+  border-color: var(--stroke);
 }
 
 .dashboard-nav-icon svg,
@@ -1912,7 +1916,7 @@ input {
 
 .dashboard-nav-item.active .dashboard-nav-icon {
   background: var(--accent-soft);
-  border-color: rgba(0, 220, 130, 0.18);
+  border-color: color-mix(in srgb, var(--accent) 22%, var(--stroke));
   color: var(--ink);
 }
 
@@ -1935,13 +1939,13 @@ input {
   margin-top: auto;
   padding: 16px;
   border-radius: 20px;
-  background: rgba(255, 255, 255, 0.025);
-  border: 1px solid rgba(255, 255, 255, 0.035);
+  background: color-mix(in srgb, var(--panel) 84%, transparent);
+  border: 1px solid var(--stroke);
 }
 
 [data-theme="light"] .dashboard-profile-premium {
-  background: rgba(8, 12, 18, 0.025);
-  border-color: rgba(8, 12, 18, 0.05);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border-color: var(--stroke);
 }
 
 .dashboard-stage {
@@ -1950,12 +1954,12 @@ input {
   flex-direction: column;
   height: 100vh;
   padding: 0;
-  background: rgba(23, 27, 32, 0.94);
+  background: var(--bg-elevated);
   overflow: hidden;
 }
 
 [data-theme="light"] .dashboard-stage {
-  background: rgba(248, 251, 249, 0.94);
+  background: var(--bg-elevated);
 }
 
 .dashboard-stage-topbar {
@@ -1964,12 +1968,12 @@ input {
   z-index: 12;
   margin-bottom: 0;
   padding: 18px 28px 16px;
-  background: rgba(23, 27, 32, 0.94);
+  background: var(--bg-elevated);
   backdrop-filter: blur(22px);
 }
 
 [data-theme="light"] .dashboard-stage-topbar {
-  background: rgba(248, 251, 249, 0.94);
+  background: var(--bg-elevated);
 }
 
 .dashboard-stage-topbar .nav {
@@ -1983,16 +1987,7 @@ input {
   justify-content: center;
   align-items: flex-start;
   padding: 0 20px 0;
-  border-radius: 30px 0 0 0;
-  background: rgba(19, 21, 26, 0.9);
-  box-shadow: inset 1px 1px 0 rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(22px);
   overflow: hidden;
-}
-
-[data-theme="light"] .dashboard-stage-shell {
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: inset 1px 1px 0 rgba(8, 12, 18, 0.05);
 }
 
 .dashboard-stage-content {
@@ -2002,19 +1997,39 @@ input {
   padding: 22px 28px 28px;
 }
 
+.dashboard-stage-shell--chat {
+  border-radius: 30px 0 0 0;
+  background: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg));
+  box-shadow: inset 1px 1px 0 color-mix(in srgb, var(--stroke) 70%, transparent);
+  backdrop-filter: blur(22px);
+}
+
+[data-theme="light"] .dashboard-stage-shell--chat {
+  background: color-mix(in srgb, var(--panel-strong) 84%, var(--bg));
+  box-shadow: inset 1px 1px 0 color-mix(in srgb, var(--stroke) 75%, transparent);
+}
+
+.dashboard-stage-content--dashboard {
+  width: min(1280px, calc(100% - 8px));
+}
+
+.dashboard-stage-content--chat {
+  width: min(1180px, calc(100% - 8px));
+}
+
 .dashboard-shell-header {
   display: grid;
   gap: 18px;
   padding: 24px 26px;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--stroke);
   border-radius: 22px 28px 28px 28px;
-  background: rgba(24, 26, 31, 0.88);
+  background: var(--panel);
   box-shadow: var(--shadow);
 }
 
 [data-theme="light"] .dashboard-shell-header {
-  border-color: rgba(8, 12, 18, 0.06);
-  background: rgba(255, 255, 255, 0.9);
+  border-color: var(--stroke);
+  background: var(--panel-strong);
 }
 
 .dashboard-shell-heading {
@@ -2067,8 +2082,8 @@ input {
   overflow-x: auto;
   padding: 8px;
   border-radius: 18px 24px 24px 24px;
-  border: 1px solid rgba(255, 255, 255, 0.04);
-  background: rgba(20, 22, 27, 0.76);
+  border: 1px solid var(--stroke);
+  background: color-mix(in srgb, var(--panel) 82%, var(--bg-elevated));
 }
 
 .dashboard-secondary-nav::-webkit-scrollbar {
@@ -2076,8 +2091,8 @@ input {
 }
 
 [data-theme="light"] .dashboard-secondary-nav {
-  border-color: rgba(8, 12, 18, 0.05);
-  background: rgba(255, 255, 255, 0.86);
+  border-color: var(--stroke);
+  background: color-mix(in srgb, var(--panel) 94%, var(--bg-elevated));
 }
 
 .dashboard-secondary-item {
@@ -2101,14 +2116,14 @@ input {
 }
 
 .dashboard-secondary-item.active {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.06);
+  background: var(--panel);
+  border-color: var(--stroke);
   color: var(--ink);
 }
 
 [data-theme="light"] .dashboard-secondary-item.active {
-  background: rgba(8, 12, 18, 0.04);
-  border-color: rgba(8, 12, 18, 0.05);
+  background: var(--panel-strong);
+  border-color: var(--stroke);
 }
 
 .dashboard-content-stage {
@@ -2119,14 +2134,15 @@ input {
   min-height: 360px;
   padding: 30px;
   border-radius: 22px 30px 30px 30px;
-  background: var(--bg-overlay);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--panel);
+  border: 1px solid var(--stroke);
   box-shadow: var(--shadow);
   backdrop-filter: blur(22px);
 }
 
 [data-theme="light"] .dashboard-placeholder-card-premium {
-  border-color: rgba(8, 12, 18, 0.06);
+  border-color: var(--stroke);
+  background: var(--panel-strong);
 }
 
 .dashboard-placeholder-meta {
@@ -2165,8 +2181,8 @@ input {
   gap: 4px;
   padding: 6px;
   border-radius: 24px;
-  background: rgba(16, 17, 21, 0.94);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  border: 1px solid var(--stroke);
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24);
   backdrop-filter: blur(24px);
 }
@@ -2177,7 +2193,7 @@ input {
 }
 
 .dashboard-bottom-item.active {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--panel-strong) 88%, var(--accent-soft));
 }
 
 .dashboard-bottom-item-icon {
@@ -2185,7 +2201,7 @@ input {
   min-height: 22px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--panel) 82%, transparent);
 }
 
 .dashboard-bottom-item.active .dashboard-bottom-item-icon {
@@ -2220,13 +2236,16 @@ input {
     min-height: auto;
     margin-top: 0;
     padding: 0 0 20px;
-    border-radius: 24px;
     overflow: visible;
   }
 
   .dashboard-stage-content {
     width: 100%;
     padding: 18px 18px 20px;
+  }
+
+  .dashboard-stage-shell--chat {
+    border-radius: 24px;
   }
 
   .dashboard-stage-topbar .nav-actions {

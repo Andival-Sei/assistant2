@@ -8,35 +8,35 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FFF8FBF9" />
-                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="InkBrush" Color="#FF09090B" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF71717A" />
+                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFEDF2F6" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFF7FAFC" />
+                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FFF4F7FA" />
+                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FFEDF2F6" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#FF18212B" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF667789" />
                     <SolidColorBrush x:Key="AccentBrush" Color="#FF10B981" />
-                    <SolidColorBrush x:Key="Accent2Brush" Color="#FF059669" />
-                    <SolidColorBrush x:Key="StrokeBrush" Color="#FFE4E4E7" />
-                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#0809090B" />
-                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1F10B981" />
-                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF09090B" />
+                    <SolidColorBrush x:Key="Accent2Brush" Color="#FF0F9F74" />
+                    <SolidColorBrush x:Key="StrokeBrush" Color="#FFD7E0E8" />
+                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#0F18212B" />
+                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1E10B981" />
+                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF18212B" />
                     <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FFFFFFFF" />
                     <SolidColorBrush x:Key="ErrorTextBrush" Color="#FFB00020" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF0A0A0A" />
-                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FF18181B" />
-                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FF171B20" />
-                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FF1E2127" />
-                    <SolidColorBrush x:Key="InkBrush" Color="#FFFAFAFA" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FFA1A1AA" />
-                    <SolidColorBrush x:Key="AccentBrush" Color="#FF00DC82" />
+                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF0F151C" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FF1B242E" />
+                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FF151D25" />
+                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FF0F151C" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#FFF3F6F8" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF8F9DAC" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#FF18D29A" />
                     <SolidColorBrush x:Key="Accent2Brush" Color="#FF10B981" />
-                    <SolidColorBrush x:Key="StrokeBrush" Color="#FF27272A" />
-                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#0AFFFFFF" />
-                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1F00DC82" />
+                    <SolidColorBrush x:Key="StrokeBrush" Color="#FF2C3743" />
+                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1E18D29A" />
 
-                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF00DC82" />
+                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF18D29A" />
                     <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="ErrorTextBrush" Color="#FFFF6B6B" />
                 </ResourceDictionary>

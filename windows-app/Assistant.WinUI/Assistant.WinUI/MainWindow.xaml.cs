@@ -32,6 +32,7 @@ namespace Assistant.WinUI
             Finance,
             Health,
             Tasks,
+            Chat,
             Settings
         }
 
@@ -219,6 +220,7 @@ namespace Assistant.WinUI
         private void NavFinanceButton_Click(object sender, RoutedEventArgs e) => SetSection(DashboardSection.Finance);
         private void NavHealthButton_Click(object sender, RoutedEventArgs e) => SetSection(DashboardSection.Health);
         private void NavTasksButton_Click(object sender, RoutedEventArgs e) => SetSection(DashboardSection.Tasks);
+        private void NavChatButton_Click(object sender, RoutedEventArgs e) => SetSection(DashboardSection.Chat);
         private void NavSettingsButton_Click(object sender, RoutedEventArgs e) => SetSection(DashboardSection.Settings);
         private void FinanceOverviewTabButton_Click(object sender, RoutedEventArgs e) => SetFinanceTab(FinanceTab.Overview);
         private void FinanceAccountsTabButton_Click(object sender, RoutedEventArgs e) => SetFinanceTab(FinanceTab.Accounts);
@@ -486,11 +488,13 @@ namespace Assistant.WinUI
             NavFinanceLabel.Text = _isRussian ? "Финансы" : "Finance";
             NavHealthLabel.Text = _isRussian ? "Здоровье" : "Health";
             NavTasksLabel.Text = _isRussian ? "Задачи" : "Tasks";
+            NavChatLabel.Text = _isRussian ? "Чат" : "Chat";
             NavSettingsLabel.Text = _isRussian ? "Настройки" : "Settings";
             CompactNavOverviewLabel.Text = NavOverviewLabel.Text;
             CompactNavFinanceLabel.Text = NavFinanceLabel.Text;
             CompactNavHealthLabel.Text = NavHealthLabel.Text;
             CompactNavTasksLabel.Text = NavTasksLabel.Text;
+            CompactNavChatLabel.Text = NavChatLabel.Text;
             CompactNavSettingsLabel.Text = NavSettingsLabel.Text;
             SettingsLogoutButton.Content = _isRussian ? "Выйти из аккаунта" : "Sign out";
 
@@ -666,13 +670,17 @@ namespace Assistant.WinUI
             ApplyNavButtonState(NavFinanceButton, _section == DashboardSection.Finance);
             ApplyNavButtonState(NavHealthButton, _section == DashboardSection.Health);
             ApplyNavButtonState(NavTasksButton, _section == DashboardSection.Tasks);
+            ApplyNavButtonState(NavChatButton, _section == DashboardSection.Chat);
             ApplyNavButtonState(NavSettingsButton, _section == DashboardSection.Settings);
             ApplyNavButtonState(CompactNavOverviewButton, _section == DashboardSection.Home);
             ApplyNavButtonState(CompactNavFinanceButton, _section == DashboardSection.Finance);
             ApplyNavButtonState(CompactNavHealthButton, _section == DashboardSection.Health);
             ApplyNavButtonState(CompactNavTasksButton, _section == DashboardSection.Tasks);
+            ApplyNavButtonState(CompactNavChatButton, _section == DashboardSection.Chat);
             ApplyNavButtonState(CompactNavSettingsButton, _section == DashboardSection.Settings);
             ApplySecondaryTabs();
+
+            ApplyStageSurfaceAppearance();
 
             var financeVisible = _section == DashboardSection.Finance;
             var settingsVisible = _section == DashboardSection.Settings;
@@ -767,6 +775,7 @@ namespace Assistant.WinUI
                 nameof(NavFinanceButton) => NavFinanceIconBox,
                 nameof(NavHealthButton) => NavHealthIconBox,
                 nameof(NavTasksButton) => NavTasksIconBox,
+                nameof(NavChatButton) => NavChatIconBox,
                 nameof(NavSettingsButton) => NavSettingsIconBox,
                 _ => null
             };
@@ -865,9 +874,17 @@ namespace Assistant.WinUI
             DashboardStageSurface.Margin = _isCompactShell
                 ? new Thickness(12, 12, 12, 12)
                 : new Thickness(0);
-            DashboardStageSurface.CornerRadius = _isCompactShell
-                ? new CornerRadius(24)
-                : new CornerRadius(30, 0, 0, 0);
+            ApplyStageSurfaceAppearance();
+        }
+
+        private void ApplyStageSurfaceAppearance()
+        {
+            var chatMode = _section == DashboardSection.Chat;
+            DashboardStageSurface.Background = (Brush)Application.Current.Resources[
+                chatMode ? "StageBackgroundBrush" : "ShellBackgroundBrush"];
+            DashboardStageSurface.CornerRadius = chatMode
+                ? (_isCompactShell ? new CornerRadius(24) : new CornerRadius(30, 0, 0, 0))
+                : new CornerRadius(0);
         }
 
         private void SetFinanceTab(FinanceTab tab)
@@ -1262,11 +1279,13 @@ namespace Assistant.WinUI
             (true, DashboardSection.Finance) => "Финансы",
             (true, DashboardSection.Health) => "Здоровье",
             (true, DashboardSection.Tasks) => "Задачи",
+            (true, DashboardSection.Chat) => "Чат",
             (true, DashboardSection.Settings) => "Настройки",
             (false, DashboardSection.Home) => "Home",
             (false, DashboardSection.Finance) => "Finance",
             (false, DashboardSection.Health) => "Health",
             (false, DashboardSection.Tasks) => "Tasks",
+            (false, DashboardSection.Chat) => "Chat",
             _ => "Settings"
         };
 
@@ -1276,11 +1295,13 @@ namespace Assistant.WinUI
             (true, DashboardSection.Finance) => "Раздел в разработке. Здесь будут бюджеты, кошельки, транзакции и финансовая аналитика.",
             (true, DashboardSection.Health) => "Раздел в разработке. Здесь появятся трекинг самочувствия, метрики и история состояния.",
             (true, DashboardSection.Tasks) => "Раздел в разработке. Здесь будут списки задач, статусы, приоритеты и рабочие потоки.",
+            (true, DashboardSection.Chat) => "Раздел в разработке. Здесь останется отдельная AI-сцена для общения с ассистентом.",
             (true, DashboardSection.Settings) => "Раздел в разработке. Здесь будут параметры приложения, профиля и подключённых сервисов.",
             (false, DashboardSection.Home) => "This section is in development. It will contain the main project overview, quick actions, and personal summary.",
             (false, DashboardSection.Finance) => "This section is in development. It will contain budgets, wallets, transactions, and financial analytics.",
             (false, DashboardSection.Health) => "This section is in development. It will contain wellbeing tracking, metrics, and health history.",
             (false, DashboardSection.Tasks) => "This section is in development. It will contain task lists, statuses, priorities, and work flows.",
+            (false, DashboardSection.Chat) => "This section is in development. It will keep the dedicated AI assistant scene.",
             _ => "This section is in development. It will contain app, profile, and connected service settings."
         };
 

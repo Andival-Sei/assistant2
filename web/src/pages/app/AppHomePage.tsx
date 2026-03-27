@@ -63,6 +63,12 @@ function SectionIcon({ section }: { section: DashboardSection }) {
           <path {...stroke} d="m3.8 6.2.9.9 1.6-1.8M3.8 10.1l.9.9 1.6-1.8M3.8 14l.9.9 1.6-1.8" />
         </svg>
       );
+    case "chat":
+      return (
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path {...stroke} d="M5.1 4.4h9.8a1.8 1.8 0 0 1 1.8 1.8v5.6a1.8 1.8 0 0 1-1.8 1.8H10l-3.5 2.3v-2.3H5.1a1.8 1.8 0 0 1-1.8-1.8V6.2a1.8 1.8 0 0 1 1.8-1.8Z" />
+        </svg>
+      );
     case "settings":
       return (
         <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -103,6 +109,7 @@ export function AppHomePage() {
     [lang, user],
   );
   const active = shellConfig[section];
+  const isChatSection = section === "chat";
   const availableSubsections = active.subsections;
   const activeSubsection =
     availableSubsections.find((item) => item.id === subsection) ?? availableSubsections[0];
@@ -259,9 +266,21 @@ export function AppHomePage() {
           <TopNav variant="auth" />
         </div>
 
-        <section className="dashboard-stage-shell">
-          <div className="dashboard-stage-content">
-            <header className="dashboard-shell-header">
+        <section
+          className={`dashboard-stage-shell ${
+            isChatSection ? "dashboard-stage-shell--chat" : "dashboard-stage-shell--dashboard"
+          }`}
+        >
+          <div
+            className={`dashboard-stage-content ${
+              isChatSection ? "dashboard-stage-content--chat" : "dashboard-stage-content--dashboard"
+            }`}
+          >
+            <header
+              className={`dashboard-shell-header ${
+                isChatSection ? "dashboard-shell-header--chat" : "dashboard-shell-header--dashboard"
+              }`}
+            >
               <div className="dashboard-shell-heading">
                 <span className="dashboard-shell-badge">{active.badge}</span>
                 <p className="dashboard-eyebrow">{active.eyebrow}</p>

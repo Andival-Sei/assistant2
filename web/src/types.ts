@@ -1,8 +1,9 @@
-export type DashboardSection = "home" | "finance" | "health" | "tasks" | "settings";
+export type DashboardSection = "home" | "finance" | "health" | "tasks" | "chat" | "settings";
 export type DashboardSubsection =
   | "summary"
   | "today"
   | "insights"
+  | "chat"
   | "overview"
   | "accounts"
   | "transactions"
