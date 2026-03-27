@@ -65,3 +65,4 @@ windows-app/**/Package.StoreAssociation.xml
 coverage/
 android-view.xml
 reference/
+supabase/.temp/

@@ -79,15 +79,15 @@ assistant/
 
 ```powershell
 cd f:\pet-projects\assistant\web
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 ```
 
 Сборка:
 
 ```powershell
 cd f:\pet-projects\assistant\web
-npm run build
+pnpm run build
 ```
 
 ## 3. Android
