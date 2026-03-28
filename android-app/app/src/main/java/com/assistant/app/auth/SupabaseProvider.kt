@@ -11,7 +11,7 @@ object SupabaseProvider {
     private const val defaultSupabaseUrl = "https://oourhsgijmwujektcfih.supabase.co"
     private const val defaultSupabaseAnonKey = "sb_publishable_WtQYhSsi5p3Gx6eGu2oFAw_5CyAVUtQ"
 
-    const val redirectUrl = "assistant://auth/callback"
+    const val redirectUrl = "assistant://auth"
     val isGoogleAuthEnabled: Boolean = BuildConfig.ENABLE_GOOGLE_AUTH
 
     val supabaseUrl: String = BuildConfig.SUPABASE_URL.ifBlank { defaultSupabaseUrl }

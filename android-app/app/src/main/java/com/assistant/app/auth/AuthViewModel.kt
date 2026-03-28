@@ -286,7 +286,7 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             uiState = uiState.copy(isLoading = true, errorMessage = null, successMessage = null)
             runCatching {
-                supabase.auth.signInWith(Google) {
+                supabase.auth.signInWith(Google, redirectUrl = SupabaseProvider.redirectUrl) {
                     queryParams["prompt"] = "select_account"
                 }
             }.onSuccess {
