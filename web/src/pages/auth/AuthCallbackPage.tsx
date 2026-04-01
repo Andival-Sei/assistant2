@@ -42,6 +42,8 @@ export function AuthCallbackPage() {
     const run = async () => {
       try {
         const params = new URLSearchParams(window.location.search);
+        const intent = params.get("intent");
+        const next = params.get("next") || "/app";
         const errorParam = params.get("error");
         const errorDesc = params.get("error_description");
         if (errorParam) {
@@ -53,7 +55,10 @@ export function AuthCallbackPage() {
           const { data } = await supabase.auth.getSession();
           if (!mounted) return;
           if (data.session) {
-            navigate("/app", { replace: true });
+            if (intent === "link") {
+              window.localStorage.setItem("settings_google_linked", "1");
+            }
+            navigate(next, { replace: true });
             return;
           }
           await new Promise((resolve) => window.setTimeout(resolve, 250));

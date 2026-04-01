@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Text;
@@ -8,6 +10,14 @@ using Assistant.WinUI.Auth;
 
 namespace Assistant.WinUI.Finance
 {
+    internal sealed class FinanceImportRequestResult
+    {
+        public bool IsSuccessStatusCode { get; init; }
+        public int StatusCode { get; init; }
+        public string Payload { get; init; } = string.Empty;
+        public FinanceImportResult? Result { get; init; }
+    }
+
     internal sealed class FinanceApiClient
     {
         private static readonly JsonSerializerOptions JsonOptions = new()
@@ -45,7 +55,186 @@ namespace Assistant.WinUI.Finance
                     p_primary_account_balance_minor = primaryAccountBalanceMinor
                 });
 
-        private async Task<FinanceOverview> PostAsync(string endpoint, string accessToken, object body)
+        public Task<FinanceTransactionsMonth> GetTransactionsAsync(string accessToken, string? month = null) =>
+            PostAsync<FinanceTransactionsMonth>(
+                "finance_get_transactions",
+                accessToken,
+                new { p_month = month });
+
+        public Task<List<FinanceCategory>> GetCategoriesAsync(string accessToken) =>
+            PostAsync<List<FinanceCategory>>(
+                "finance_get_categories",
+                accessToken,
+                new { });
+
+        public Task<FinanceOverview> UpdateOverviewCardsAsync(string accessToken, IReadOnlyList<string> cards) =>
+            PostAsync<FinanceOverview>(
+                "finance_update_overview_cards",
+                accessToken,
+                new { p_cards = cards });
+
+        public Task<FinanceOverview> UpsertAccountAsync(
+            string accessToken,
+            Guid? id,
+            string providerCode,
+            string? cardType,
+            string? lastFourDigits,
+            long balanceMinor,
+            string currency,
+            bool makePrimary,
+            long? creditLimitMinor,
+            long? creditDebtMinor,
+            long? creditRequiredPaymentMinor,
+            DateTimeOffset? creditPaymentDueDate,
+            DateTimeOffset? creditGracePeriodEndDate) =>
+            PostAsync<FinanceOverview>(
+                "finance_upsert_account",
+                accessToken,
+                new
+                {
+                    p_id = id,
+                    p_provider_code = providerCode,
+                    p_card_type = cardType,
+                    p_last_four_digits = lastFourDigits,
+                    p_balance_minor = balanceMinor,
+                    p_currency = currency,
+                    p_make_primary = makePrimary,
+                    p_credit_limit_minor = creditLimitMinor,
+                    p_credit_debt_minor = creditDebtMinor,
+                    p_credit_required_payment_minor = creditRequiredPaymentMinor,
+                    p_credit_payment_due_date = creditPaymentDueDate?.Date,
+                    p_credit_grace_period_end_date = creditGracePeriodEndDate?.Date
+                });
+
+        public Task<FinanceOverview> CreateTransactionAsync(
+            string accessToken,
+            Guid accountId,
+            string direction,
+            string? title,
+            string? note,
+            long? amountMinor,
+            string? currency,
+            DateTimeOffset? happenedAt,
+            Guid? categoryId,
+            IReadOnlyList<FinanceTransactionItemDraft> items,
+            Guid? destinationAccountId,
+            string sourceType,
+            string? receiptStoragePath,
+            string? merchantName) =>
+            CreateTransactionInternalAsync(
+                accessToken,
+                accountId,
+                direction,
+                title,
+                note,
+                amountMinor,
+                currency,
+                happenedAt,
+                categoryId,
+                items,
+                destinationAccountId,
+                sourceType,
+                merchantName);
+
+        public async Task<FinanceImportResult> ProcessReceiptImportAsync(
+            string accessToken,
+            string filePath,
+            string fileName,
+            string contentType,
+            string sourceType)
+        {
+            var response = await ProcessReceiptImportAttemptAsync(accessToken, filePath, fileName, contentType, sourceType);
+            if (!response.IsSuccessStatusCode || response.Result == null)
+            {
+                throw new InvalidOperationException(string.IsNullOrWhiteSpace(response.Payload)
+                    ? "Receipt import failed."
+                    : response.Payload);
+            }
+
+            return response.Result;
+        }
+
+        internal async Task<FinanceImportRequestResult> ProcessReceiptImportAttemptAsync(
+            string accessToken,
+            string filePath,
+            string fileName,
+            string contentType,
+            string sourceType)
+        {
+            using var form = new MultipartFormDataContent();
+            form.Add(new StringContent(sourceType == "photo" ? "camera" : "file"), "sourceKind");
+            using var stream = File.OpenRead(filePath);
+            using var fileContent = new StreamContent(stream);
+            fileContent.Headers.ContentType = new MediaTypeHeaderValue(contentType);
+            form.Add(fileContent, "file", fileName);
+
+            using var request = new HttpRequestMessage(HttpMethod.Post, "functions/v1/process-finance-import");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            request.Headers.Add("apikey", AppConfig.SupabaseAnonKey);
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+            request.Content = form;
+
+            using var response = await _httpClient.SendAsync(request);
+            var payload = await response.Content.ReadAsStringAsync();
+
+            return new FinanceImportRequestResult
+            {
+                IsSuccessStatusCode = response.IsSuccessStatusCode,
+                StatusCode = (int)response.StatusCode,
+                Payload = payload,
+                Result = response.IsSuccessStatusCode && !string.IsNullOrWhiteSpace(payload)
+                    ? JsonSerializer.Deserialize<FinanceImportResult>(payload, JsonOptions)
+                    : null
+            };
+        }
+
+        private async Task<FinanceOverview> CreateTransactionInternalAsync(
+            string accessToken,
+            Guid accountId,
+            string direction,
+            string? title,
+            string? note,
+            long? amountMinor,
+            string? currency,
+            DateTimeOffset? happenedAt,
+            Guid? categoryId,
+            IReadOnlyList<FinanceTransactionItemDraft> items,
+            Guid? destinationAccountId,
+            string sourceType,
+            string? merchantName)
+        {
+            await PostAsync<object>(
+                "finance_create_transactions",
+                accessToken,
+                new
+                {
+                    p_transactions = new[]
+                    {
+                        new
+                        {
+                            accountId,
+                            direction,
+                            title,
+                            note,
+                            amountMinor,
+                            currency,
+                            happenedAt = happenedAt?.UtcDateTime,
+                            categoryId,
+                            items,
+                            destinationAccountId,
+                            sourceType,
+                            merchantName
+                        }
+                    }
+                });
+
+            return await GetOverviewAsync(accessToken);
+        }
+
+        private Task<FinanceOverview> PostAsync(string endpoint, string accessToken, object body) =>
+            PostAsync<FinanceOverview>(endpoint, accessToken, body);
+
+        private async Task<T> PostAsync<T>(string endpoint, string accessToken, object body)
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, $"rest/v1/rpc/{endpoint}");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
@@ -61,8 +250,8 @@ namespace Assistant.WinUI.Finance
                 throw new InvalidOperationException(string.IsNullOrWhiteSpace(payload) ? "Finance request failed." : payload);
             }
 
-            return JsonSerializer.Deserialize<FinanceOverview>(payload, JsonOptions)
-                ?? new FinanceOverview();
+            return JsonSerializer.Deserialize<T>(payload, JsonOptions)
+                ?? throw new InvalidOperationException("Finance response payload is empty.");
         }
     }
 }

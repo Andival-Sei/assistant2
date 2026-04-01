@@ -19,6 +19,9 @@ namespace Assistant.WinUI.Auth
         [JsonPropertyName("expires_at")]
         public long? ExpiresAt { get; set; }
 
+        [JsonPropertyName("user_id")]
+        public string? UserId { get; set; }
+
         [JsonPropertyName("user_email")]
         public string? UserEmail { get; set; }
     }

@@ -883,6 +883,155 @@ input {
   width: 100%;
 }
 
+.settings-panel {
+  display: grid;
+  gap: 18px;
+  animation: dashboard-fade 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.settings-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-card {
+  background: var(--panel);
+  border: 1px solid var(--stroke);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(18px);
+  border-radius: 28px;
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.settings-card-head {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-card-head h3 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.settings-card-head p,
+.settings-card-text {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.settings-inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+}
+
+.settings-inline-form input {
+  flex: 1 1 320px;
+}
+
+.settings-inline-form--wide input {
+  min-width: min(100%, 420px);
+}
+
+.settings-action-btn {
+  min-height: 44px;
+}
+
+.settings-action-btn--align-start {
+  justify-self: start;
+}
+
+.settings-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.settings-block {
+  display: grid;
+  gap: 14px;
+  padding-top: 2px;
+}
+
+.settings-row-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px;
+  border-radius: 20px;
+  background: color-mix(in srgb, var(--panel-strong) 88%, transparent);
+  border: 1px solid var(--stroke);
+}
+
+.settings-block-danger {
+  padding: 18px;
+  border-radius: 20px;
+  border: 1px solid color-mix(in srgb, var(--danger) 35%, var(--stroke));
+  background: color-mix(in srgb, var(--danger) 8%, transparent);
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.settings-hint {
+  text-align: left;
+}
+
+.settings-delete-btn {
+  background: color-mix(in srgb, var(--danger) 18%, var(--panel));
+  border-color: color-mix(in srgb, var(--danger) 42%, var(--stroke));
+}
+
+.settings-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(7, 9, 12, 0.56);
+  backdrop-filter: blur(10px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.settings-modal {
+  width: min(100%, 520px);
+  background: var(--panel-strong);
+  border: 1px solid var(--stroke);
+  border-radius: 28px;
+  box-shadow: var(--shadow);
+  padding: 24px;
+  display: grid;
+  gap: 18px;
+}
+
+.settings-modal-copy {
+  display: grid;
+  gap: 10px;
+}
+
+.settings-modal-copy strong {
+  font-size: 24px;
+}
+
+.settings-modal-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.settings-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 @media (max-width: 900px) {
   .hero {
     grid-template-columns: 1fr;
@@ -912,6 +1061,11 @@ input {
 
   .settings-logout {
     width: 100%;
+  }
+
+  .settings-row-card,
+  .settings-form-grid {
+    grid-template-columns: 1fr;
   }
 
   .nav-actions {
@@ -1442,7 +1596,6 @@ input {
   color: var(--ink);
 }
 
-.finance-panel,
 .finance-onboarding-card,
 .finance-balance-card,
 .finance-side-card,
@@ -1451,13 +1604,6 @@ input {
   border: 1px solid var(--stroke);
   box-shadow: var(--shadow);
   backdrop-filter: blur(18px);
-}
-
-.finance-panel {
-  display: grid;
-  gap: 18px;
-  padding: 24px;
-  border-radius: 30px;
 }
 
 .finance-panel-hero h3,
@@ -1780,16 +1926,26 @@ input {
     font-size: 14px;
   }
 
-  .finance-panel {
-    padding: 18px;
-    border-radius: 24px;
-  }
-
   .finance-balance-card strong {
     font-size: 30px;
   }
 
-.finance-account-item,
+  .settings-card {
+    padding: 20px;
+    border-radius: 24px;
+  }
+
+  .settings-inline-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .settings-action-btn,
+  .settings-delete-btn {
+    width: 100%;
+  }
+
+  .finance-account-item,
   .finance-transaction-item,
   .finance-setting-row {
     align-items: flex-start;
@@ -1798,10 +1954,9 @@ input {
 }
 
 .dashboard-app-shell {
-  height: 100vh;
+  min-height: 100vh;
   display: grid;
   grid-template-columns: 288px minmax(0, 1fr);
-  overflow: hidden;
   background:
     radial-gradient(circle at top left, rgba(0, 220, 130, 0.09), transparent 28%),
     radial-gradient(circle at bottom right, rgba(16, 185, 129, 0.08), transparent 26%),
@@ -1959,10 +2114,9 @@ input {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  min-height: 100vh;
   padding: 0;
   background: var(--bg-elevated);
-  overflow: hidden;
 }
 
 [data-theme="light"] .dashboard-stage {
@@ -1970,13 +2124,9 @@ input {
 }
 
 .dashboard-stage-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 12;
   margin-bottom: 0;
   padding: 18px 28px 16px;
-  background: var(--bg-elevated);
-  backdrop-filter: blur(22px);
+  background: transparent;
 }
 
 [data-theme="light"] .dashboard-stage-topbar {
@@ -1987,41 +2137,19 @@ input {
   padding: 0;
 }
 
-.dashboard-stage-shell {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 0 20px 0;
-  overflow: hidden;
-}
-
 .dashboard-stage-content {
-  width: min(1180px, calc(100% - 8px));
+  width: 100%;
   display: grid;
   gap: 18px;
-  padding: 22px 28px 28px;
-}
-
-.dashboard-stage-shell--chat {
-  border-radius: 30px 0 0 0;
-  background: color-mix(in srgb, var(--bg-elevated) 78%, var(--bg));
-  box-shadow: inset 1px 1px 0 color-mix(in srgb, var(--stroke) 70%, transparent);
-  backdrop-filter: blur(22px);
-}
-
-[data-theme="light"] .dashboard-stage-shell--chat {
-  background: color-mix(in srgb, var(--panel-strong) 84%, var(--bg));
-  box-shadow: inset 1px 1px 0 color-mix(in srgb, var(--stroke) 75%, transparent);
+  padding: 0 28px 28px;
 }
 
 .dashboard-stage-content--dashboard {
-  width: min(1280px, calc(100% - 8px));
+  width: 100%;
 }
 
 .dashboard-stage-content--chat {
-  width: min(1180px, calc(100% - 8px));
+  width: 100%;
 }
 
 .dashboard-shell-header {
@@ -2236,24 +2364,13 @@ input {
   }
 
   .dashboard-stage-topbar {
-    margin: 0 -12px 12px;
+    margin: 0 0 12px;
     padding: 12px 12px 10px;
-  }
-
-  .dashboard-stage-shell {
-    min-height: auto;
-    margin-top: 0;
-    padding: 0 0 20px;
-    overflow: visible;
   }
 
   .dashboard-stage-content {
     width: 100%;
-    padding: 18px 18px 20px;
-  }
-
-  .dashboard-stage-shell--chat {
-    border-radius: 24px;
+    padding: 0 12px 20px;
   }
 
   .dashboard-stage-topbar .nav-actions {

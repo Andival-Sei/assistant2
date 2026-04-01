@@ -1,8 +1,8 @@
 import { createClient } from "@supabase/supabase-js";
 import { authStorage, clearStoredAuthSession } from "./authStorage";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
+export const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as
   | string
   | undefined;
 export const googleAuthEnabled =

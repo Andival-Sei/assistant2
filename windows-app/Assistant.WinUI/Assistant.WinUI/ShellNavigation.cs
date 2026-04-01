@@ -42,14 +42,15 @@ namespace Assistant.WinUI
                     {
                         Eyebrow = "Money workspace",
                         Badge = "Live",
-                        Note = "Финансовая сцена объединяет баланс, счета, транзакции и настройки в одном рабочем контексте.",
+                        Note = "Финансовая сцена объединяет обзор, счета, транзакции, категории и аналитику в одном рабочем контексте.",
                         DefaultSubsection = "overview",
                         Subsections = new[]
                         {
                             new ShellNavItem { Key = "overview", Label = "Обзор" },
                             new ShellNavItem { Key = "accounts", Label = "Счета" },
                             new ShellNavItem { Key = "transactions", Label = "Транзакции" },
-                            new ShellNavItem { Key = "settings", Label = "Настройки" },
+                            new ShellNavItem { Key = "categories", Label = "Категории" },
+                            new ShellNavItem { Key = "analytics", Label = "Аналитика" },
                         }
                     },
                     ["Health"] = new ShellSectionConfig
@@ -124,14 +125,15 @@ namespace Assistant.WinUI
                 {
                     Eyebrow = "Money workspace",
                     Badge = "Live",
-                    Note = "The finance stage brings balance, accounts, transactions, and settings into one working context.",
+                    Note = "The finance stage brings overview, accounts, transactions, categories, and analytics into one working context.",
                     DefaultSubsection = "overview",
                     Subsections = new[]
                     {
                         new ShellNavItem { Key = "overview", Label = "Overview" },
                         new ShellNavItem { Key = "accounts", Label = "Accounts" },
                         new ShellNavItem { Key = "transactions", Label = "Transactions" },
-                        new ShellNavItem { Key = "settings", Label = "Settings" },
+                        new ShellNavItem { Key = "categories", Label = "Categories" },
+                        new ShellNavItem { Key = "analytics", Label = "Analytics" },
                     }
                 },
                 ["Health"] = new ShellSectionConfig

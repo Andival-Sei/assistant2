@@ -6,6 +6,7 @@ using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using Assistant.WinUI.Settings;
 
 namespace Assistant.WinUI.Auth
 {
@@ -81,6 +82,95 @@ namespace Assistant.WinUI.Auth
             EnsureSuccess(response, json);
         }
 
+        public async Task UpdateEmailAsync(string accessToken, string newEmail)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Put, "/auth/v1/user");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            req.Content = new StringContent(
+                JsonSerializer.Serialize(new { email = newEmail }),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _http.SendAsync(req);
+            var json = await response.Content.ReadAsStringAsync();
+            EnsureSuccess(response, json);
+        }
+
+        public async Task<List<LinkedIdentity>> GetUserIdentitiesAsync(string accessToken)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, "/auth/v1/user/identities");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _http.SendAsync(req);
+            var json = await response.Content.ReadAsStringAsync();
+            EnsureSuccess(response, json);
+
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                return new List<LinkedIdentity>();
+            }
+
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                doc.RootElement.TryGetProperty("identities", out var nested))
+            {
+                return JsonSerializer.Deserialize<List<LinkedIdentity>>(nested.GetRawText()) ?? new List<LinkedIdentity>();
+            }
+
+            if (doc.RootElement.ValueKind == JsonValueKind.Array)
+            {
+                return JsonSerializer.Deserialize<List<LinkedIdentity>>(json) ?? new List<LinkedIdentity>();
+            }
+
+            return new List<LinkedIdentity>();
+        }
+
+        public async Task<string> GetIdentityLinkUrlAsync(
+            string accessToken,
+            string provider,
+            string redirectTo)
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Post, "/auth/v1/user/identities/authorize");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+            req.Content = new StringContent(
+                JsonSerializer.Serialize(new
+                {
+                    provider,
+                    redirect_to = redirectTo,
+                    query_params = new
+                    {
+                        prompt = "select_account"
+                    }
+                }),
+                Encoding.UTF8,
+                "application/json");
+
+            var response = await _http.SendAsync(req);
+            var json = await response.Content.ReadAsStringAsync();
+            EnsureSuccess(response, json);
+
+            using var doc = JsonDocument.Parse(json);
+            var url = doc.RootElement.GetPropertyOrDefault("url");
+            if (string.IsNullOrWhiteSpace(url))
+            {
+                throw new InvalidOperationException("Identity link URL is missing.");
+            }
+
+            return url;
+        }
+
+        public async Task UnlinkIdentityAsync(string accessToken, string identityId)
+        {
+            using var req = new HttpRequestMessage(
+                HttpMethod.Delete,
+                $"/auth/v1/user/identities/{Uri.EscapeDataString(identityId)}");
+            req.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+            var response = await _http.SendAsync(req);
+            var json = await response.Content.ReadAsStringAsync();
+            EnsureSuccess(response, json);
+        }
+
         public async Task SignOutAsync(string accessToken)
         {
             using var req = new HttpRequestMessage(HttpMethod.Post, "/auth/v1/logout");
@@ -119,6 +209,21 @@ namespace Assistant.WinUI.Auth
             });
 
             using var req = new HttpRequestMessage(HttpMethod.Post, "/auth/v1/token?grant_type=pkce");
+            req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
+            var response = await _http.SendAsync(req);
+            var json = await response.Content.ReadAsStringAsync();
+            EnsureSuccess(response, json);
+            return ParseSession(json);
+        }
+
+        public async Task<AuthSession> RefreshSessionAsync(string refreshToken)
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                refresh_token = refreshToken
+            });
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, "/auth/v1/token?grant_type=refresh_token");
             req.Content = new StringContent(payload, Encoding.UTF8, "application/json");
             var response = await _http.SendAsync(req);
             var json = await response.Content.ReadAsStringAsync();
@@ -198,6 +303,12 @@ namespace Assistant.WinUI.Auth
                 user.TryGetProperty("email", out var email))
             {
                 session.UserEmail = email.GetString();
+            }
+
+            if (root.TryGetProperty("user", out user) &&
+                user.TryGetProperty("id", out var id))
+            {
+                session.UserId = id.GetString();
             }
 
             return session;

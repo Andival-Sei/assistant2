@@ -1,24 +1,18 @@
 <svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="bg" x1="88" y1="60" x2="430" y2="448" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F6EFE1"/>
-      <stop offset="1" stop-color="#DCEBF4"/>
+    <linearGradient id="bg" x1="72" y1="64" x2="432" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F7F1E7"/>
+      <stop offset="1" stop-color="#D9EAF4"/>
     </linearGradient>
-    <linearGradient id="panel" x1="118" y1="98" x2="382" y2="402" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#16324A"/>
-      <stop offset="1" stop-color="#0F766E"/>
-    </linearGradient>
-    <linearGradient id="shine" x1="146" y1="108" x2="286" y2="248" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFFFF" stop-opacity="0.62"/>
+    <linearGradient id="shine" x1="118" y1="88" x2="290" y2="246" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF" stop-opacity="0.72"/>
       <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
     </linearGradient>
   </defs>
-  <rect x="48" y="48" width="416" height="416" rx="112" fill="url(#bg)"/>
-  <rect x="104" y="92" width="304" height="328" rx="92" fill="url(#panel)"/>
-  <path d="M104 166C104 125.131 137.131 92 178 92H300C340.869 92 374 125.131 374 166V176H104V166Z" fill="url(#shine)"/>
-  <circle cx="162" cy="136" r="10" fill="#FFF4DD"/>
-  <circle cx="194" cy="136" r="10" fill="#F5B38B"/>
-  <circle cx="226" cy="136" r="10" fill="#8DE2D7"/>
-  <path d="M257.1 180C272.6 180 286.4 189 293.5 202.7L342.8 297.7C346.8 305.5 346.5 314.7 341.8 322.1C337 329.4 329 333.8 320.2 333.8H304.8C295.7 333.8 287.4 328.8 283.2 320.8L273.7 302.2H238.5L228.8 320.9C224.6 328.9 216.3 333.8 207.3 333.8H191.8C183 333.8 174.9 329.4 170.2 322.1C165.6 314.8 165.2 305.6 169.3 297.7L218.6 202.7C225.7 189 239.6 180 255 180H257.1ZM256.2 240L232.2 286.6H280L256.2 240Z" fill="#F7F3EC"/>
-  <rect x="216" y="353" width="80" height="20" rx="10" fill="#F28C6F"/>
+  <rect x="48" y="48" width="416" height="416" rx="116" fill="url(#bg)"/>
+  <path d="M108 122C146 86 206 64 292 64C324 64 356 67 404 80V182C366 148 322 126 280 126C216 126 170 150 136 200C126 184 118 158 108 122Z" fill="url(#shine)" fill-opacity="0.56"/>
+  <path d="M186 376L256 156" stroke="#16324A" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M256 156L326 376" stroke="#0F766E" stroke-width="74" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M214 292H298" stroke="#F28C6F" stroke-width="62" stroke-linecap="round"/>
+  <path d="M356 154L367 178L391 189L367 200L356 224L345 200L321 189L345 178L356 154Z" fill="#F5B37A"/>
 </svg>

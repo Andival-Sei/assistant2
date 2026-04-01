@@ -1,13 +1,18 @@
 package com.assistant.app
 
+import android.graphics.Bitmap
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -27,6 +32,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -34,6 +40,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -52,12 +59,14 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,31 +78,46 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.assistant.app.auth.AuthMode
 import com.assistant.app.auth.AuthUiState
 import com.assistant.app.auth.AuthViewModel
 import com.assistant.app.auth.SupabaseProvider
+import com.assistant.app.finance.FinanceAccount
+import com.assistant.app.finance.FinanceCategory
 import com.assistant.app.finance.FinanceOverview
 import com.assistant.app.finance.FinanceRepository
+import com.assistant.app.finance.FinanceTransactionsMonth
+import com.assistant.app.settings.LinkedIdentity
+import com.assistant.app.settings.SettingsRepository
+import com.assistant.app.settings.SettingsSnapshot
 import com.assistant.app.ui.theme.AssistantAndroidTheme
 import com.assistant.app.ui.theme.BlobCool
 import com.assistant.app.ui.theme.BlobWarm
 import com.assistant.app.ui.theme.DarkInput
 import com.assistant.app.ui.theme.LightInput
 import java.text.NumberFormat
+import java.io.ByteArrayOutputStream
 import java.util.Currency
 import java.util.Locale
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     private val authViewModel: AuthViewModel by viewModels()
@@ -143,7 +167,8 @@ class MainActivity : ComponentActivity() {
                     onGoogle = viewModel::signInWithGoogle,
                     onSignOut = viewModel::signOut,
                     onRememberDeviceChange = viewModel::updateRememberDevice,
-                    isGoogleAuthEnabled = SupabaseProvider.isGoogleAuthEnabled
+                    isGoogleAuthEnabled = SupabaseProvider.isGoogleAuthEnabled,
+                    authState = state
                 )
             }
         }
@@ -189,7 +214,8 @@ private enum class FinanceTab {
     Overview,
     Accounts,
     Transactions,
-    Settings
+    Categories,
+    Analytics
 }
 
 private enum class DashboardSubsection {
@@ -199,6 +225,8 @@ private enum class DashboardSubsection {
     Overview,
     Accounts,
     Transactions,
+    Categories,
+    Analytics,
     Settings,
     Habits,
     Metrics,
@@ -397,7 +425,8 @@ private fun AppScene(
     onGoogle: () -> Unit,
     onSignOut: () -> Unit,
     onRememberDeviceChange: (Boolean) -> Unit,
-    isGoogleAuthEnabled: Boolean
+    isGoogleAuthEnabled: Boolean,
+    authState: AuthUiState
 ) {
     val t = if (isRussian) RuText else EnText
     val userEmail = state.userEmail
@@ -418,7 +447,8 @@ private fun AppScene(
                 onLanguageChange = onLanguageChange,
                 onSignOut = onSignOut,
                 t = t,
-                userEmail = userEmail.orEmpty()
+                userEmail = userEmail.orEmpty(),
+                authState = authState
             )
         } else {
             AuthScreen(
@@ -473,7 +503,8 @@ private fun DashboardScreen(
     onLanguageChange: (Boolean) -> Unit,
     onSignOut: () -> Unit,
     t: UiText,
-    userEmail: String
+    userEmail: String,
+    authState: AuthUiState
 ) {
     var section by rememberSaveable { mutableStateOf(DashboardSection.Home) }
     var subsection by rememberSaveable { mutableStateOf(DashboardSubsection.Summary) }
@@ -483,11 +514,15 @@ private fun DashboardScreen(
     var financeError by remember { mutableStateOf<String?>(null) }
     var financeOnboardingStep by rememberSaveable { mutableStateOf(0) }
     var financeOnboarding by remember { mutableStateOf(FinanceOnboardingState()) }
+    var settingsSnapshot by remember { mutableStateOf<SettingsSnapshot?>(null) }
+    var settingsLoading by remember { mutableStateOf(false) }
+    var settingsBanner by remember { mutableStateOf<Pair<Boolean, String>?>(null) }
     val sectionCopy = dashboardSectionCopy(isRussian)
     val activeSection = sectionCopy[section]!!
     val activeSubsection = activeSection.subsections.firstOrNull { it.id == subsection } ?: activeSection.subsections.first()
     val userName = rememberUserName(userEmail)
     val financeRepository = remember { FinanceRepository() }
+    val settingsRepository = remember { SettingsRepository() }
     val coroutineScope = rememberCoroutineScope()
     val setSectionState: (DashboardSection) -> Unit = { next ->
         val nextSubsection = sectionCopy[next]!!.defaultSubsection
@@ -497,7 +532,8 @@ private fun DashboardScreen(
             financeTab = when (nextSubsection) {
                 DashboardSubsection.Accounts -> FinanceTab.Accounts
                 DashboardSubsection.Transactions -> FinanceTab.Transactions
-                DashboardSubsection.Settings -> FinanceTab.Settings
+                DashboardSubsection.Categories -> FinanceTab.Categories
+                DashboardSubsection.Analytics -> FinanceTab.Analytics
                 else -> FinanceTab.Overview
             }
         }
@@ -508,7 +544,8 @@ private fun DashboardScreen(
             FinanceTab.Overview -> DashboardSubsection.Overview
             FinanceTab.Accounts -> DashboardSubsection.Accounts
             FinanceTab.Transactions -> DashboardSubsection.Transactions
-            FinanceTab.Settings -> DashboardSubsection.Settings
+            FinanceTab.Categories -> DashboardSubsection.Categories
+            FinanceTab.Analytics -> DashboardSubsection.Analytics
         }
     }
     val completeFinanceOnboarding: (Boolean) -> Unit = { skip ->
@@ -546,6 +583,23 @@ private fun DashboardScreen(
         financeLoading = false
     }
 
+    LaunchedEffect(section, userEmail, authState.successMessage) {
+        if (section != DashboardSection.Settings || userEmail.isBlank()) return@LaunchedEffect
+        settingsLoading = true
+        runCatching {
+            settingsRepository.load()
+        }.onSuccess {
+            settingsSnapshot = it
+        }.onFailure { err ->
+            settingsBanner = false to (err.message ?: if (isRussian) {
+                "Не удалось загрузить настройки."
+            } else {
+                "Failed to load settings."
+            })
+        }
+        settingsLoading = false
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -572,27 +626,20 @@ private fun DashboardScreen(
                         onThemeChange = onThemeChange,
                         onLanguageChange = onLanguageChange
                     )
-                    SecondaryTabRow(
-                        items = activeSection.subsections,
-                        active = activeSubsection.id,
-                        onSelect = { item ->
-                            subsection = item
-                            if (section == DashboardSection.Finance) {
-                                setFinanceTabState(
-                                    when (item) {
-                                        DashboardSubsection.Accounts -> FinanceTab.Accounts
-                                        DashboardSubsection.Transactions -> FinanceTab.Transactions
-                                        DashboardSubsection.Settings -> FinanceTab.Settings
-                                        else -> FinanceTab.Overview
-                                    }
-                                )
+                    if (section != DashboardSection.Finance) {
+                        SecondaryTabRow(
+                            items = activeSection.subsections,
+                            active = activeSubsection.id,
+                            onSelect = { item ->
+                                subsection = item
                             }
-                        }
-                    )
+                        )
+                    }
                     if (section == DashboardSection.Finance) {
                         FinanceSectionCard(
                             isRussian = isRussian,
                             compact = true,
+                            financeRepository = financeRepository,
                             overview = financeOverview,
                             activeTab = financeTab,
                             loading = financeLoading,
@@ -602,7 +649,109 @@ private fun DashboardScreen(
                             onTabChange = setFinanceTabState,
                             onOnboardingStepChange = { financeOnboardingStep = it },
                             onOnboardingChange = { financeOnboarding = it },
+                            onOverviewChange = { financeOverview = it },
                             onCompleteOnboarding = completeFinanceOnboarding
+                        )
+                    } else if (section == DashboardSection.Settings) {
+                        SettingsSectionCard(
+                            isRussian = isRussian,
+                            subsection = activeSubsection.id,
+                            snapshot = settingsSnapshot,
+                            loading = settingsLoading,
+                            banner = settingsBanner,
+                            onBannerChange = { settingsBanner = it },
+                            onReload = {
+                                coroutineScope.launch {
+                                    settingsLoading = true
+                                    runCatching { settingsRepository.load() }
+                                        .onSuccess { settingsSnapshot = it }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось загрузить настройки." else "Failed to load settings.")
+                                        }
+                                    settingsLoading = false
+                                }
+                            },
+                            onSaveDisplayName = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.saveDisplayName(value)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Имя сохранено." else "Name saved."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сохранить имя." else "Failed to save name.")
+                                    }
+                                }
+                            },
+                            onSaveEmail = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.changeEmail(value)
+                                    }.onSuccess {
+                                        settingsBanner = true to if (isRussian) "Запрос на смену почты отправлен." else "Email change request sent."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сменить почту." else "Failed to change email.")
+                                    }
+                                }
+                            },
+                            onSaveGemini = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.saveGeminiApiKey(value)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Gemini API Key сохранён." else "Gemini API key saved."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сохранить ключ." else "Failed to save the key.")
+                                    }
+                                }
+                            },
+                            onSavePassword = { value ->
+                                coroutineScope.launch {
+                                    runCatching { settingsRepository.changePassword(value) }
+                                        .onSuccess {
+                                            settingsBanner = true to if (isRussian) "Пароль обновлён." else "Password updated."
+                                        }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось обновить пароль." else "Failed to update password.")
+                                        }
+                                }
+                            },
+                            onLinkGoogle = {
+                                coroutineScope.launch {
+                                    runCatching { settingsRepository.linkGoogle() }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось привязать Google." else "Failed to link Google.")
+                                        }
+                                }
+                            },
+                            onUnlinkGoogle = { identityId ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.unlinkIdentity(identityId)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Google аккаунт отвязан." else "Google account unlinked."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось отвязать Google." else "Failed to unlink Google.")
+                                    }
+                                }
+                            },
+                            onDeleteAccount = {
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.deleteAccount()
+                                    }.onSuccess {
+                                        onSignOut()
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось удалить аккаунт." else "Failed to delete account.")
+                                    }
+                                }
+                            },
+                            onSignOut = onSignOut
                         )
                     } else {
                         DashboardPlaceholderCard(
@@ -668,27 +817,20 @@ private fun DashboardScreen(
                         onThemeChange = onThemeChange,
                         onLanguageChange = onLanguageChange
                     )
-                    SecondaryTabRow(
-                        items = activeSection.subsections,
-                        active = activeSubsection.id,
-                        onSelect = { item ->
-                            subsection = item
-                            if (section == DashboardSection.Finance) {
-                                setFinanceTabState(
-                                    when (item) {
-                                        DashboardSubsection.Accounts -> FinanceTab.Accounts
-                                        DashboardSubsection.Transactions -> FinanceTab.Transactions
-                                        DashboardSubsection.Settings -> FinanceTab.Settings
-                                        else -> FinanceTab.Overview
-                                    }
-                                )
+                    if (section != DashboardSection.Finance) {
+                        SecondaryTabRow(
+                            items = activeSection.subsections,
+                            active = activeSubsection.id,
+                            onSelect = { item ->
+                                subsection = item
                             }
-                        }
-                    )
+                        )
+                    }
                     if (section == DashboardSection.Finance) {
                         FinanceSectionCard(
                             isRussian = isRussian,
                             compact = false,
+                            financeRepository = financeRepository,
                             overview = financeOverview,
                             activeTab = financeTab,
                             loading = financeLoading,
@@ -698,7 +840,109 @@ private fun DashboardScreen(
                             onTabChange = setFinanceTabState,
                             onOnboardingStepChange = { financeOnboardingStep = it },
                             onOnboardingChange = { financeOnboarding = it },
+                            onOverviewChange = { financeOverview = it },
                             onCompleteOnboarding = completeFinanceOnboarding
+                        )
+                    } else if (section == DashboardSection.Settings) {
+                        SettingsSectionCard(
+                            isRussian = isRussian,
+                            subsection = activeSubsection.id,
+                            snapshot = settingsSnapshot,
+                            loading = settingsLoading,
+                            banner = settingsBanner,
+                            onBannerChange = { settingsBanner = it },
+                            onReload = {
+                                coroutineScope.launch {
+                                    settingsLoading = true
+                                    runCatching { settingsRepository.load() }
+                                        .onSuccess { settingsSnapshot = it }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось загрузить настройки." else "Failed to load settings.")
+                                        }
+                                    settingsLoading = false
+                                }
+                            },
+                            onSaveDisplayName = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.saveDisplayName(value)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Имя сохранено." else "Name saved."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сохранить имя." else "Failed to save name.")
+                                    }
+                                }
+                            },
+                            onSaveEmail = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.changeEmail(value)
+                                    }.onSuccess {
+                                        settingsBanner = true to if (isRussian) "Запрос на смену почты отправлен." else "Email change request sent."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сменить почту." else "Failed to change email.")
+                                    }
+                                }
+                            },
+                            onSaveGemini = { value ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.saveGeminiApiKey(value)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Gemini API Key сохранён." else "Gemini API key saved."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось сохранить ключ." else "Failed to save the key.")
+                                    }
+                                }
+                            },
+                            onSavePassword = { value ->
+                                coroutineScope.launch {
+                                    runCatching { settingsRepository.changePassword(value) }
+                                        .onSuccess {
+                                            settingsBanner = true to if (isRussian) "Пароль обновлён." else "Password updated."
+                                        }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось обновить пароль." else "Failed to update password.")
+                                        }
+                                }
+                            },
+                            onLinkGoogle = {
+                                coroutineScope.launch {
+                                    runCatching { settingsRepository.linkGoogle() }
+                                        .onFailure { err ->
+                                            settingsBanner = false to (err.message ?: if (isRussian) "Не удалось привязать Google." else "Failed to link Google.")
+                                        }
+                                }
+                            },
+                            onUnlinkGoogle = { identityId ->
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.unlinkIdentity(identityId)
+                                        settingsRepository.load()
+                                    }.onSuccess {
+                                        settingsSnapshot = it
+                                        settingsBanner = true to if (isRussian) "Google аккаунт отвязан." else "Google account unlinked."
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось отвязать Google." else "Failed to unlink Google.")
+                                    }
+                                }
+                            },
+                            onDeleteAccount = {
+                                coroutineScope.launch {
+                                    runCatching {
+                                        settingsRepository.deleteAccount()
+                                    }.onSuccess {
+                                        onSignOut()
+                                    }.onFailure { err ->
+                                        settingsBanner = false to (err.message ?: if (isRussian) "Не удалось удалить аккаунт." else "Failed to delete account.")
+                                    }
+                                }
+                            },
+                            onSignOut = onSignOut
                         )
                     } else {
                         DashboardPlaceholderCard(
@@ -858,6 +1102,7 @@ private fun DashboardSidebarCard(
 private fun FinanceSectionCard(
     isRussian: Boolean,
     compact: Boolean,
+    financeRepository: FinanceRepository,
     overview: FinanceOverview?,
     activeTab: FinanceTab,
     loading: Boolean,
@@ -867,27 +1112,24 @@ private fun FinanceSectionCard(
     onTabChange: (FinanceTab) -> Unit,
     onOnboardingStepChange: (Int) -> Unit,
     onOnboardingChange: (FinanceOnboardingState) -> Unit,
+    onOverviewChange: (FinanceOverview) -> Unit,
     onCompleteOnboarding: (Boolean) -> Unit
 ) {
-    val financeTitle = if (isRussian) "Финансы" else "Finance"
-    val financeSubtitle = if (isRussian) {
-        "Управляйте балансом, счетами и будущими транзакциями в одном пространстве."
-    } else {
-        "Manage balance, accounts, and future transactions in one workspace."
-    }
     val tabLabels = if (isRussian) {
         mapOf(
-            FinanceTab.Overview to "Главная",
+            FinanceTab.Overview to "Обзор",
             FinanceTab.Accounts to "Счета",
             FinanceTab.Transactions to "Транзакции",
-            FinanceTab.Settings to "Настройки"
+            FinanceTab.Categories to "Категории",
+            FinanceTab.Analytics to "Аналитика"
         )
     } else {
         mapOf(
             FinanceTab.Overview to "Overview",
             FinanceTab.Accounts to "Accounts",
             FinanceTab.Transactions to "Transactions",
-            FinanceTab.Settings to "Settings"
+            FinanceTab.Categories to "Categories",
+            FinanceTab.Analytics to "Analytics"
         )
     }
     val currencies = if (isRussian) {
@@ -900,43 +1142,137 @@ private fun FinanceSectionCard(
     } else {
         listOf("T-Bank", "Sber", "Alfa", "VTB")
     }
+    val coroutineScope = rememberCoroutineScope()
+    var transactionsMonth by remember { mutableStateOf<FinanceTransactionsMonth?>(null) }
+    var transactionsLoading by remember { mutableStateOf(false) }
+    var transactionsError by remember { mutableStateOf<String?>(null) }
+    var selectedMonth by remember { mutableStateOf<String?>(null) }
+    var monthMenuExpanded by remember { mutableStateOf(false) }
+    var categories by remember { mutableStateOf<List<FinanceCategory>>(emptyList()) }
+    var categoriesLoading by remember { mutableStateOf(false) }
+    var categoriesError by remember { mutableStateOf<String?>(null) }
+    var overviewCardOrder by remember { mutableStateOf<List<String>>(emptyList()) }
+    var selectedOverviewCards by remember { mutableStateOf<List<String>>(emptyList()) }
+    var overviewSettingsSaving by remember { mutableStateOf(false) }
+    var overviewSettingsError by remember { mutableStateOf<String?>(null) }
+    var overviewSettingsOpen by rememberSaveable { mutableStateOf(false) }
+    var transactionFlowOpen by rememberSaveable { mutableStateOf(false) }
+    var accountDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var editingAccountId by rememberSaveable { mutableStateOf<String?>(null) }
+    var overviewRefreshToken by remember { mutableStateOf(0) }
 
-    GlassSurface(modifier = Modifier.fillMaxWidth()) {
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+    LaunchedEffect(overview?.overviewCards) {
+        val configured = overview?.overviewCards.orEmpty()
+        selectedOverviewCards = if (configured.isEmpty()) defaultOverviewCardIds() else configured
+        overviewCardOrder = (if (configured.isEmpty()) defaultOverviewCardIds() else configured)
+            .plus(defaultOverviewCardIds())
+            .distinct()
+    }
+
+    LaunchedEffect(overview?.onboardingCompleted) {
+        if (overview?.onboardingCompleted != true) return@LaunchedEffect
+        transactionsLoading = true
+        transactionsError = null
+        runCatching { financeRepository.getTransactions() }
+            .onSuccess {
+                transactionsMonth = it
+                selectedMonth = it.month
+            }
+            .onFailure { error ->
+                transactionsError = error.message ?: if (isRussian) "Не удалось загрузить транзакции." else "Failed to load transactions."
+            }
+        transactionsLoading = false
+    }
+
+    LaunchedEffect(overview?.onboardingCompleted, activeTab) {
+        if (overview?.onboardingCompleted != true || activeTab != FinanceTab.Categories || categories.isNotEmpty()) return@LaunchedEffect
+        categoriesLoading = true
+        categoriesError = null
+        runCatching { financeRepository.getCategories() }
+            .onSuccess { categories = it }
+            .onFailure { error ->
+                categoriesError = error.message ?: if (isRussian) "Не удалось загрузить категории." else "Failed to load categories."
+            }
+        categoriesLoading = false
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        if (overview?.onboardingCompleted == true) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            if (categories.isEmpty() && !categoriesLoading) {
+                                coroutineScope.launch {
+                                    categoriesLoading = true
+                                    categoriesError = null
+                                    runCatching { financeRepository.getCategories() }
+                                        .onSuccess { categories = it }
+                                        .onFailure { loadError ->
+                                            categoriesError = loadError.message ?: if (isRussian) "Не удалось загрузить категории." else "Failed to load categories."
+                                        }
+                                    categoriesLoading = false
+                                }
+                            }
+                            transactionFlowOpen = true
+                        },
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(if (isRussian) "Добавить транзакцию" else "Add transaction")
+                    }
+                    if (activeTab == FinanceTab.Accounts) {
+                        Button(
+                            onClick = {
+                                editingAccountId = null
+                                accountDialogOpen = true
+                            },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Добавить счёт" else "Add account")
+                        }
+                    }
+                    if (activeTab == FinanceTab.Overview) {
+                        Button(
+                            onClick = { overviewSettingsOpen = true },
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Настроить обзор" else "Overview settings")
+                        }
+                    }
+                }
+            }
+        }
+
+        if (loading) {
             Text(
-                text = financeTitle.uppercase(),
-                fontSize = 11.sp,
-                color = MaterialTheme.colorScheme.secondary
-            )
-            Text(
-                text = financeTitle,
-                fontSize = if (compact) 30.sp else 38.sp,
-                fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = financeSubtitle,
+                text = if (isRussian) "Загружаем данные из Supabase…" else "Loading data from Supabase…",
                 fontSize = 14.sp,
-                lineHeight = 22.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            return
+        }
 
-            if (loading) {
-                Text(
-                    text = if (isRussian) "Загружаем данные из Supabase…" else "Loading data from Supabase…",
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                return@Column
-            }
-
-            if (error != null) {
-                Text(
-                    text = error,
-                    fontSize = 13.sp,
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+        if (error != null) {
+            Text(
+                text = error,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
 
             if (overview == null || !overview.onboardingCompleted) {
                 val stepTitle = when (onboardingStep) {
@@ -1096,74 +1432,470 @@ private fun FinanceSectionCard(
                         }
                     }
                 }
-                return@Column
+                return
             }
 
-            FinanceTabStrip(
-                tabs = FinanceTab.entries.toList(),
-                labels = tabLabels,
-                activeTab = activeTab,
-                onTabChange = onTabChange
-            )
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Box(modifier = Modifier.padding(8.dp)) {
+                FinanceTabStrip(
+                    tabs = FinanceTab.entries.toList(),
+                    labels = tabLabels,
+                    activeTab = activeTab,
+                    onTabChange = onTabChange
+                )
+            }
+        }
 
-            if (activeTab == FinanceTab.Overview) {
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        AnimatedContent(
+            targetState = activeTab,
+            transitionSpec = {
+                fadeIn(animationSpec = tween(220, delayMillis = 40)) togetherWith
+                    fadeOut(animationSpec = tween(140))
+            },
+            label = "finance-tab-content"
+        ) { tab ->
+            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                when (tab) {
+                        FinanceTab.Overview -> {
+                            AnimatedContent(
+                                targetState = overviewRefreshToken,
+                                transitionSpec = {
+                                    (fadeIn(animationSpec = tween(260, delayMillis = 40)) +
+                                        slideInVertically(animationSpec = tween(260)) { it / 8 }) togetherWith
+                                        (fadeOut(animationSpec = tween(180)) +
+                                            slideOutVertically(animationSpec = tween(180)) { -it / 10 })
+                                },
+                                label = "finance-overview-refresh"
+                            ) {
+                                Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                    FinanceSummaryCards(
+                                        isRussian = isRussian,
+                                        compact = compact,
+                                        overview = overview
+                                    )
+                                    FinanceRecentTransactionsBlock(
+                                        isRussian = isRussian,
+                                        transactions = overview.recentTransactions
+                                    )
+                                }
+                            }
+                        }
+
+                        FinanceTab.Accounts -> {
+                            FinanceAccountsBlock(
+                                isRussian = isRussian,
+                                overview = overview,
+                                onEdit = { account ->
+                                    editingAccountId = account.id
+                                    accountDialogOpen = true
+                                }
+                            )
+                        }
+
+                        FinanceTab.Transactions -> {
+                            Surface(
+                                shape = RoundedCornerShape(20.dp),
+                                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(
+                                            text = if (isRussian) "Месяц" else "Month",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            text = selectedMonth?.let { formatMonthLabel(it, isRussian) }
+                                                ?: if (isRussian) "Выберите месяц" else "Choose month",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
+                                    Box {
+                                        Button(
+                                            onClick = { monthMenuExpanded = true },
+                                            shape = RoundedCornerShape(14.dp),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.surface,
+                                                contentColor = MaterialTheme.colorScheme.onSurface
+                                            )
+                                        ) {
+                                            Text(if (isRussian) "Выбрать" else "Select")
+                                        }
+                                        DropdownMenu(
+                                            expanded = monthMenuExpanded,
+                                            onDismissRequest = { monthMenuExpanded = false }
+                                        ) {
+                                            transactionsMonth?.availableMonths?.forEach { month ->
+                                                DropdownMenuItem(
+                                                    text = { Text(formatMonthLabel(month, isRussian)) },
+                                                    onClick = {
+                                                        monthMenuExpanded = false
+                                                        selectedMonth = month
+                                                        coroutineScope.launch {
+                                                            transactionsLoading = true
+                                                            transactionsError = null
+                                                            runCatching { financeRepository.getTransactions(month) }
+                                                                .onSuccess { transactionsMonth = it }
+                                                                .onFailure { error ->
+                                                                    transactionsError = error.message ?: if (isRussian) "Не удалось загрузить транзакции." else "Failed to load transactions."
+                                                                }
+                                                            transactionsLoading = false
+                                                        }
+                                                    }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            FinanceTransactionsMonthBlock(
+                                isRussian = isRussian,
+                                loading = transactionsLoading,
+                                error = transactionsError,
+                                transactionsMonth = transactionsMonth
+                            )
+                        }
+
+                        FinanceTab.Categories -> {
+                            FinanceCategoriesBlock(
+                                isRussian = isRussian,
+                                loading = categoriesLoading,
+                                error = categoriesError,
+                                categories = categories
+                            )
+                        }
+
+                        FinanceTab.Analytics -> {
+                            FinanceAnalyticsBlock(isRussian = isRussian)
+                        }
+                }
+            }
+        }
+
+        if (overviewSettingsOpen && overview?.onboardingCompleted == true) {
+            FinanceOverviewSettingsDialog(
+                isRussian = isRussian,
+                orderedCards = overviewCardOrder,
+                selectedCards = selectedOverviewCards,
+                saving = overviewSettingsSaving,
+                error = overviewSettingsError,
+                onDismiss = { overviewSettingsOpen = false },
+                onToggle = { cardId, enabled ->
+                    selectedOverviewCards = toggleOverviewCard(selectedOverviewCards, cardId, enabled)
+                },
+                onMove = { cardId, targetIndex ->
+                    overviewCardOrder = moveOverviewCardToIndex(overviewCardOrder, cardId, targetIndex)
+                },
+                onSave = {
+                    overviewSettingsError = null
+                    coroutineScope.launch {
+                        overviewSettingsSaving = true
+                        runCatching {
+                            financeRepository.updateOverviewCards(
+                                overviewCardOrder.filter { it in selectedOverviewCards }
+                            )
+                        }
+                            .onSuccess { updated ->
+                                onOverviewChange(updated)
+                                selectedOverviewCards = updated.overviewCards
+                                overviewCardOrder = updated.overviewCards.plus(defaultOverviewCardIds()).distinct()
+                                overviewRefreshToken += 1
+                                overviewSettingsOpen = false
+                            }
+                            .onFailure { saveError ->
+                                overviewSettingsError = saveError.message ?: if (isRussian) {
+                                    "Не удалось сохранить настройки обзора."
+                                } else {
+                                    "Failed to save overview settings."
+                                }
+                            }
+                        overviewSettingsSaving = false
+                    }
+                }
+            )
+        }
+
+        if (transactionFlowOpen && overview != null) {
+            FinanceTransactionFlowDialog(
+                isRussian = isRussian,
+                overview = overview,
+                categories = categories,
+                categoriesLoading = categoriesLoading,
+                financeRepository = financeRepository,
+                selectedMonth = selectedMonth,
+                onDismiss = { transactionFlowOpen = false },
+                onSaved = { updatedOverview, updatedTransactions ->
+                    onOverviewChange(updatedOverview)
+                    if (updatedTransactions != null) {
+                        transactionsMonth = updatedTransactions
+                        selectedMonth = updatedTransactions.month
+                    }
+                    transactionFlowOpen = false
+                }
+            )
+        }
+
+        if (accountDialogOpen && overview != null) {
+            FinanceAccountDialog(
+                isRussian = isRussian,
+                overview = overview,
+                account = overview.accounts.firstOrNull { it.id == editingAccountId },
+                onDismiss = { accountDialogOpen = false },
+                onSaved = { updated ->
+                    onOverviewChange(updated)
+                    accountDialogOpen = false
+                },
+                financeRepository = financeRepository
+            )
+        }
+    }
+}
+
+private data class FinanceCategoryNode(
+    val category: FinanceCategory,
+    val children: List<FinanceCategoryNode>
+)
+
+private data class FinanceDraftItemState(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val title: String = "",
+    val amount: String = "",
+    val categoryId: String? = null
+)
+
+private data class FinanceDraftState(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val sourceType: String = "manual",
+    val documentKind: String = "manual",
+    val direction: String = "expense",
+    val title: String = "",
+    val merchantName: String = "",
+    val note: String = "",
+    val accountId: String = "",
+    val destinationAccountId: String = "",
+    val currency: String = "RUB",
+    val happenedAt: String = isoNowLocal(),
+    val items: List<FinanceDraftItemState> = listOf(FinanceDraftItemState())
+)
+
+private data class FinanceOverviewCardVisual(
+    val id: String,
+    val title: String,
+    val value: String,
+    val detail: String
+)
+
+@Composable
+private fun FinanceSummaryCards(
+    isRussian: Boolean,
+    compact: Boolean,
+    overview: FinanceOverview
+) {
+    val currency = overview.defaultCurrency ?: "RUB"
+    val monthLabel = currentMonthLabel(isRussian)
+    val cards = remember(overview, isRussian) {
+        overview.overviewCards.mapNotNull { cardId ->
+            val metric = when (cardId) {
+                "total_balance" -> kotlin.math.abs(overview.totalBalanceMinor)
+                "card_balance" -> kotlin.math.abs(overview.cardBalanceMinor)
+                "cash_balance" -> kotlin.math.abs(overview.cashBalanceMinor)
+                "month_income" -> kotlin.math.abs(overview.monthIncomeMinor)
+                "month_expense" -> kotlin.math.abs(overview.monthExpenseMinor)
+                "month_result" -> kotlin.math.abs(overview.monthNetMinor)
+                "recent_transactions" -> overview.recentTransactions.size.toLong()
+                else -> 0L
+            }
+            if (metric == 0L) return@mapNotNull null
+
+            when (cardId) {
+                "total_balance" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Общий баланс" else "Total balance",
+                    value = formatMoney(overview.totalBalanceMinor, currency, isRussian),
+                    detail = if (isRussian) "Все счета и наличные" else "All accounts and cash"
+                )
+                "card_balance" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "На картах" else "On cards",
+                    value = formatMoney(overview.cardBalanceMinor, currency, isRussian),
+                    detail = if (isRussian) "Карточные счета" else "Card accounts"
+                )
+                "cash_balance" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Наличные" else "Cash",
+                    value = formatMoney(overview.cashBalanceMinor, currency, isRussian),
+                    detail = if (isRussian) "Физические деньги" else "Physical money"
+                )
+                "month_income" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Доходы" else "Income",
+                    value = formatMoney(overview.monthIncomeMinor, currency, isRussian),
+                    detail = monthLabel
+                )
+                "month_expense" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Расходы" else "Expenses",
+                    value = formatMoney(-overview.monthExpenseMinor, currency, isRussian),
+                    detail = monthLabel
+                )
+                "month_result" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Результат месяца" else "Month result",
+                    value = formatMoney(overview.monthNetMinor, currency, isRussian),
+                    detail = monthLabel
+                )
+                "recent_transactions" -> FinanceOverviewCardVisual(
+                    id = cardId,
+                    title = if (isRussian) "Последние транзакции" else "Recent transactions",
+                    value = overview.recentTransactions.size.toString(),
+                    detail = if (isRussian) "Короткий список" else "Short list"
+                )
+                else -> null
+            }
+        }
+    }
+
+    BoxWithConstraints {
+        val columns = when {
+            maxWidth > 900.dp -> 3
+            compact -> 1
+            else -> 2
+        }
+
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            cards.filter { it.id != "recent_transactions" }.chunked(columns).forEach { row ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = if (isRussian) "Текущий баланс" else "Current balance",
-                            fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    row.forEachIndexed { index, card ->
+                        FinanceOverviewMetricCard(
+                            modifier = Modifier.weight(1f),
+                            card = card,
+                            emphasize = index == row.lastIndex && card.id == "total_balance" && !compact
                         )
-                        Text(
-                            text = formatMoney(overview.totalBalanceMinor, overview.defaultCurrency ?: "RUB", isRussian),
-                            fontSize = if (compact) 32.sp else 42.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = if (isRussian) {
-                                "Баланс складывается из всех карточных счетов и наличных."
-                            } else {
-                                "Balance is built from card accounts and cash."
-                            },
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                    }
+                    repeat(columns - row.size) {
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
+        }
+    }
+}
 
-            if (activeTab == FinanceTab.Overview || activeTab == FinanceTab.Accounts) {
+@Composable
+private fun FinanceOverviewMetricCard(
+    modifier: Modifier = Modifier,
+    card: FinanceOverviewCardVisual,
+    emphasize: Boolean
+) {
+    val accent = financeOverviewCardAccent(card.id)
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(24.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.74f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 164.dp)
+                .padding(horizontal = 18.dp, vertical = 16.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = 26.dp, y = (-26).dp)
+                    .size(88.dp)
+                    .background(accent.copy(alpha = 0.24f), CircleShape)
+            )
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Text(
-                    text = if (isRussian) "Счета" else "Accounts",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = card.title.uppercase(),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = card.value,
+                    fontSize = if (emphasize) 42.sp else 34.sp,
+                    fontWeight = FontWeight.ExtraBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (overview.accounts.isEmpty()) {
-                    Text(
-                        text = if (isRussian) "Счета пока не добавлены." else "No accounts yet.",
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    overview.accounts.forEach { account ->
-                        Surface(
-                            shape = RoundedCornerShape(20.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                Text(
+                    text = card.detail,
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceAccountsBlock(
+    isRussian: Boolean,
+    overview: FinanceOverview,
+    onEdit: (FinanceAccount) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = if (isRussian) "Счета" else "Accounts",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (overview.accounts.isEmpty()) {
+            Text(
+                text = if (isRussian) "Счета пока не добавлены." else "No accounts yet.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            overview.accounts.forEach { account ->
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Box {
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(top = 16.dp, end = 16.dp)
+                                .size(72.dp)
+                                .background(
+                                    color = financeOverviewCardAccent(
+                                        if (account.kind == "cash") "cash_balance" else "card_balance"
+                                    ).copy(alpha = 0.18f),
+                                    shape = CircleShape
+                                )
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp),
+                                modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
@@ -1175,13 +1907,9 @@ private fun FinanceSectionCard(
                                         color = MaterialTheme.colorScheme.onSurface
                                     )
                                     Text(
-                                        text = when {
-                                            account.kind == "cash" && isRussian -> "Наличные"
-                                            account.kind == "cash" -> "Cash"
-                                            account.isPrimary && isRussian -> "Основной счёт"
-                                            account.isPrimary -> "Primary account"
-                                            else -> account.bankName ?: account.name
-                                        },
+                                        text = account.bankName ?: if (account.kind == "cash") {
+                                            if (isRussian) "Наличные" else "Cash"
+                                        } else account.name,
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
@@ -1193,59 +1921,598 @@ private fun FinanceSectionCard(
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
                             }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = if (isRussian) "Операций: ${account.transactionCount}" else "Transactions: ${account.transactionCount}",
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Button(
+                                    onClick = { onEdit(account) },
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.surface,
+                                        contentColor = MaterialTheme.colorScheme.onSurface
+                                    ),
+                                    contentPadding = ButtonDefaults.ContentPadding
+                                ) {
+                                    Text(if (isRussian) "Изменить" else "Edit")
+                                }
+                            }
                         }
                     }
                 }
             }
+        }
+    }
+}
 
-            if (activeTab == FinanceTab.Overview || activeTab == FinanceTab.Transactions) {
+@Composable
+private fun FinanceRecentTransactionsBlock(
+    isRussian: Boolean,
+    transactions: List<com.assistant.app.finance.FinanceTransaction>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = if (isRussian) "Последние транзакции" else "Recent transactions",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (transactions.isEmpty()) {
+            Text(
+                text = if (isRussian) "Пока нет транзакций. Форма добавления будет следующим шагом." else "No transactions yet. Full entry comes next.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            transactions.forEach { transaction ->
+                FinanceTransactionRow(isRussian = isRussian, transaction = transaction)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceAnimatedDialog(
+    onDismiss: () -> Unit,
+    dismissEnabled: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    var visible by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val alpha by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(180),
+        label = "finance-dialog-alpha"
+    )
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (visible) 1f else 0.975f,
+        animationSpec = tween(220),
+        label = "finance-dialog-scale"
+    )
+
+    fun requestDismiss() {
+        if (!dismissEnabled || !visible) return
+        visible = false
+        coroutineScope.launch {
+            delay(180)
+            onDismiss()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
+    Dialog(onDismissRequest = { requestDismiss() }) {
+        Box(
+            modifier = Modifier.graphicsLayer {
+                this.alpha = alpha
+                scaleX = scale
+                scaleY = scale
+                translationY = (1f - alpha) * 24f
+            }
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun FinanceOverviewSettingsDialog(
+    isRussian: Boolean,
+    orderedCards: List<String>,
+    selectedCards: List<String>,
+    saving: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onToggle: (String, Boolean) -> Unit,
+    onMove: (String, Int) -> Unit,
+    onSave: () -> Unit
+) {
+    FinanceAnimatedDialog(onDismiss = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                FinanceOverviewSettingsBlock(
+                    isRussian = isRussian,
+                    orderedCards = orderedCards,
+                    selectedCards = selectedCards,
+                    saving = saving,
+                    error = error,
+                    onToggle = onToggle,
+                    onMove = onMove
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onDismiss,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Отмена" else "Cancel")
+                        }
+                        Button(
+                            onClick = onSave,
+                            enabled = !saving,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(if (isRussian) "Сохранить" else "Save")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceSimpleDialog(
+    title: String,
+    body: String,
+    onDismiss: () -> Unit,
+    isRussian: Boolean
+) {
+    FinanceAnimatedDialog(onDismiss = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
                 Text(
-                    text = if (isRussian) "Последние транзакции" else "Recent transactions",
-                    fontSize = 18.sp,
+                    text = title,
+                    fontSize = 20.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (overview.recentTransactions.isEmpty()) {
-                    Text(
-                        text = if (isRussian) {
-                            "Транзакций пока нет. Следующим этапом подключим ввод операций."
-                        } else {
-                            "No transactions yet. Data entry comes next."
-                        },
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    text = body,
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Button(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Text(if (isRussian) "Закрыть" else "Close")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceTransactionFlowDialog(
+    isRussian: Boolean,
+    overview: FinanceOverview,
+    categories: List<FinanceCategory>,
+    categoriesLoading: Boolean,
+    financeRepository: FinanceRepository,
+    selectedMonth: String?,
+    onDismiss: () -> Unit,
+    onSaved: (FinanceOverview, FinanceTransactionsMonth?) -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val dialogScroll = rememberScrollState()
+    var step by remember { mutableStateOf("chooser") }
+    var drafts by remember(overview.accounts) {
+        mutableStateOf(listOf(createManualFinanceDraft(overview)))
+    }
+    var selectedDraftId by remember { mutableStateOf(drafts.first().id) }
+    var busy by remember { mutableStateOf<String?>(null) }
+    var error by remember { mutableStateOf<String?>(null) }
+    var warnings by remember { mutableStateOf<List<String>>(emptyList()) }
+    val selectedDraft = drafts.firstOrNull { it.id == selectedDraftId } ?: drafts.first()
+    val categoryOptions = remember(categories, selectedDraft.direction, isRussian) {
+        buildFinanceCategoryOptions(
+            categories = categories,
+            direction = if (selectedDraft.direction == "income") "income" else "expense"
+        )
+    }
+
+    fun updateDraft(transform: (FinanceDraftState) -> FinanceDraftState) {
+        drafts = drafts.map { draft ->
+            if (draft.id == selectedDraftId) transform(draft) else draft
+        }
+    }
+
+    suspend fun importDocument(fileName: String, mimeType: String, bytes: ByteArray, sourceType: String) {
+        busy = "import"
+        error = null
+        runCatching {
+            financeRepository.processReceiptImport(fileName, mimeType, bytes, sourceType)
+        }.onSuccess { result ->
+            warnings = result.warnings
+            drafts = result.drafts.map { draft ->
+                financeDraftFromImport(draft, overview)
+            }.ifEmpty {
+                listOf(createManualFinanceDraft(overview, sourceType = sourceType))
+            }
+            selectedDraftId = drafts.firstOrNull()?.id ?: selectedDraftId
+            step = "editor"
+        }.onFailure { throwable ->
+            error = throwable.message ?: if (isRussian) "Не удалось обработать документ." else "Failed to process document."
+        }
+        busy = null
+    }
+
+    val photoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            importDocument(
+                fileName = "camera-${System.currentTimeMillis()}.jpg",
+                mimeType = "image/jpeg",
+                bytes = bitmapToJpeg(bitmap),
+                sourceType = "photo"
+            )
+        }
+    }
+
+    val fileLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        coroutineScope.launch {
+            runCatching { readBytesFromUri(context, uri) }
+                .onSuccess { result ->
+                    importDocument(
+                        fileName = result.first,
+                        mimeType = result.second,
+                        bytes = result.third,
+                        sourceType = "file"
                     )
+                }
+                .onFailure { throwable ->
+                    error = throwable.message ?: if (isRussian) "Не удалось прочитать файл." else "Failed to read file."
+                }
+        }
+    }
+
+    FinanceAnimatedDialog(onDismiss = onDismiss, dismissEnabled = busy == null) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.97f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .widthIn(max = 720.dp)
+                    .heightIn(max = 760.dp)
+                    .fillMaxWidth()
+                    .verticalScroll(dialogScroll)
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = if (isRussian) "Добавить транзакцию" else "Add transaction",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (error != null) {
+                    Text(error ?: "", fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                }
+                if (warnings.isNotEmpty()) {
+                    warnings.forEach { warning ->
+                        Text(warning, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+
+                if (step == "chooser") {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        FinanceMethodButton(
+                            eyebrow = if (isRussian) "РУЧНОЙ ВВОД" else "MANUAL",
+                            title = if (isRussian) "Вручную" else "Manual",
+                            body = if (isRussian) "Полностью заполнить транзакцию и позиции руками." else "Fill the transaction and items manually.",
+                            onClick = {
+                                drafts = listOf(createManualFinanceDraft(overview))
+                                selectedDraftId = drafts.first().id
+                                step = "editor"
+                            }
+                        )
+                        FinanceMethodButton(
+                            eyebrow = if (isRussian) "КАМЕРА" else "CAMERA",
+                            title = if (isRussian) "Фото" else "Photo",
+                            body = if (isRussian) "Сделать снимок чека и разобрать его через Gemini." else "Capture a receipt and parse it with Gemini.",
+                            onClick = { photoLauncher.launch(null) },
+                            emphasized = true
+                        )
+                        FinanceMethodButton(
+                            eyebrow = if (isRussian) "ИМПОРТ" else "IMPORT",
+                            title = if (isRussian) "Файл" else "File",
+                            body = if (isRussian) "Открыть изображение, PDF или EML." else "Open an image, PDF, or EML.",
+                            onClick = { fileLauncher.launch(arrayOf("image/*", "application/pdf", "message/rfc822")) }
+                        )
+                        if (busy == "import") {
+                            Text(
+                                text = if (isRussian) "Анализируем документ…" else "Analyzing document…",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 } else {
-                    overview.recentTransactions.forEach { transaction ->
-                        Surface(
-                            shape = RoundedCornerShape(18.dp),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    if (drafts.size > 1) {
+                        Row(
+                            modifier = Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text(
-                                        text = transaction.title,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = transaction.happenedAt,
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                            drafts.forEachIndexed { index, draft ->
+                                DashboardNavChip(
+                                    text = if (isRussian) "Черновик ${index + 1}" else "Draft ${index + 1}",
+                                    active = draft.id == selectedDraftId,
+                                    onClick = { selectedDraftId = draft.id }
+                                )
+                            }
+                        }
+                    }
+                    if (categoriesLoading) {
+                        Text(
+                            text = if (isRussian) "Подгружаем категории…" else "Loading categories…",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    FinanceDraftEditor(
+                        isRussian = isRussian,
+                        overview = overview,
+                        draft = selectedDraft,
+                        categoryOptions = categoryOptions,
+                        onDraftChange = { next -> updateDraft { next } }
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = {
+                                if (step == "chooser") onDismiss() else step = "chooser"
+                            },
+                            enabled = busy == null,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(
+                                if (step == "chooser") {
+                                    if (isRussian) "Закрыть" else "Close"
+                                } else {
+                                    if (isRussian) "Назад" else "Back"
                                 }
+                            )
+                        }
+                        if (step == "editor") {
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        busy = "save"
+                                        error = null
+                                        runCatching {
+                                            val payloads = drafts.map { draft ->
+                                                draft.toRepositoryPayload().toRepositoryRequest()
+                                            }
+                                            val updatedOverview = financeRepository.createTransactions(
+                                                payloads
+                                            )
+                                            val updatedMonth = runCatching {
+                                                financeRepository.getTransactions(selectedMonth)
+                                            }.getOrNull()
+                                            updatedOverview to updatedMonth
+                                        }.onSuccess { (updatedOverview, updatedMonth) ->
+                                            onSaved(updatedOverview, updatedMonth)
+                                        }.onFailure { throwable ->
+                                            error = throwable.message ?: if (isRussian) "Не удалось сохранить транзакцию." else "Failed to save transaction."
+                                        }
+                                        busy = null
+                                    }
+                                },
+                                enabled = busy == null && selectedDraft.canSave(),
+                                shape = RoundedCornerShape(14.dp)
+                            ) {
                                 Text(
-                                    text = formatMoney(transaction.amountMinor, transaction.currency, isRussian),
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    if (busy == "save") {
+                                        if (isRussian) "Сохраняем…" else "Saving…"
+                                    } else {
+                                        if (drafts.size > 1) {
+                                            if (isRussian) "Сохранить все черновики" else "Save all drafts"
+                                        } else {
+                                            if (isRussian) "Сохранить" else "Save"
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceOverviewSettingsBlock(
+    isRussian: Boolean,
+    orderedCards: List<String>,
+    selectedCards: List<String>,
+    saving: Boolean,
+    error: String?,
+    onToggle: (String, Boolean) -> Unit,
+    onMove: (String, Int) -> Unit
+) {
+    val density = LocalDensity.current
+    val rowHeightPx = with(density) { 78.dp.toPx() }
+    val latestOrderedCards by rememberUpdatedState(orderedCards)
+    var draggedCardId by remember { mutableStateOf<String?>(null) }
+    var previewTargetIndex by remember { mutableStateOf<Int?>(null) }
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+            Text(
+                text = if (isRussian) "Настройки обзора" else "Overview settings",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = if (isRussian) {
+                    "Выбирай карточки для обзора и меняй их порядок. Нулевые карточки на экране обзора скрываются автоматически."
+                } else {
+                    "Choose overview cards and reorder them. Zero-value cards are hidden automatically on the overview screen."
+                },
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            orderedCards.forEachIndexed { index, cardId ->
+                var dragOffsetY by remember(cardId) { mutableStateOf(0f) }
+                Surface(
+                    modifier = Modifier.offset { IntOffset(0, dragOffsetY.roundToInt()) },
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.58f),
+                    border = BorderStroke(
+                        if (previewTargetIndex == index && draggedCardId != cardId) 1.5.dp else 1.dp,
+                        if (previewTargetIndex == index && draggedCardId != cardId) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.outline
+                        }
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            modifier = Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Checkbox(
+                                checked = selectedCards.contains(cardId),
+                                onCheckedChange = { checked -> onToggle(cardId, checked) }
+                            )
+                            Text(
+                                text = financeOverviewCardLabel(cardId, isRussian),
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        color = MaterialTheme.colorScheme.surface,
+                                        shape = RoundedCornerShape(10.dp)
+                                    )
+                                    .pointerInput(cardId, saving) {
+                                        detectDragGesturesAfterLongPress(
+                                            onDragStart = {
+                                                dragOffsetY = 0f
+                                                draggedCardId = cardId
+                                                previewTargetIndex = latestOrderedCards.indexOf(cardId).takeIf { it >= 0 }
+                                            },
+                                            onDragEnd = {
+                                                val currentIndex = latestOrderedCards.indexOf(cardId)
+                                                if (currentIndex != -1) {
+                                                    val targetIndex = previewTargetIndex
+                                                        ?: (currentIndex + (dragOffsetY / rowHeightPx).roundToInt())
+                                                        .coerceIn(0, latestOrderedCards.lastIndex)
+                                                    if (targetIndex != currentIndex) {
+                                                        onMove(cardId, targetIndex)
+                                                    }
+                                                }
+                                                dragOffsetY = 0f
+                                                draggedCardId = null
+                                                previewTargetIndex = null
+                                            },
+                                            onDragCancel = {
+                                                dragOffsetY = 0f
+                                                draggedCardId = null
+                                                previewTargetIndex = null
+                                            }
+                                        ) { change, dragAmount ->
+                                            change.consume()
+                                            if (saving) return@detectDragGesturesAfterLongPress
+                                            dragOffsetY += dragAmount.y
+                                            val currentIndex = latestOrderedCards.indexOf(cardId)
+                                            if (currentIndex != -1) {
+                                                previewTargetIndex = (currentIndex + (dragOffsetY / rowHeightPx).roundToInt())
+                                                    .coerceIn(0, latestOrderedCards.lastIndex)
+                                            }
+                                        }
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "⋮⋮",
+                                    fontSize = 13.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -1253,36 +2520,1151 @@ private fun FinanceSectionCard(
                 }
             }
 
-            if (activeTab == FinanceTab.Settings) {
-                Surface(
-                    shape = RoundedCornerShape(22.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(18.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+            if (saving) {
+                Text(
+                    text = if (isRussian) "Сохраняем настройки…" else "Saving settings…",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            if (error != null) {
+                Text(
+                    text = error,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+    }
+}
+
+@Composable
+private fun FinanceAccountDialog(
+    isRussian: Boolean,
+    overview: FinanceOverview,
+    account: FinanceAccount?,
+    financeRepository: FinanceRepository,
+    onDismiss: () -> Unit,
+    onSaved: (FinanceOverview) -> Unit
+) {
+    val providers = remember(isRussian) { financeAccountProviders(isRussian) }
+    val coroutineScope = rememberCoroutineScope()
+    val initialProvider = account?.providerCode
+        ?: providers.firstOrNull { it.first != "cash" }?.first
+        ?: "tbank"
+    var providerCode by remember(account?.id) { mutableStateOf(initialProvider) }
+    var amountInput by remember(account?.id) {
+        mutableStateOf(
+            account?.let { accountValue ->
+                val value = accountValue.balanceMinor / 100.0
+                if (kotlin.math.abs(value % 1.0) < 0.000001) {
+                    value.toLong().toString()
+                } else {
+                    value.toString().replace('.', ',')
+                }
+            } ?: ""
+        )
+    }
+    var nameInput by remember(account?.id) {
+        mutableStateOf(
+            account?.takeIf { it.kind != "cash" }?.name
+                ?.takeUnless { account.bankName != null && it == account.bankName }
+                .orEmpty()
+        )
+    }
+    var makePrimary by remember(account?.id) { mutableStateOf(account?.isPrimary == true) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    val selectedProvider = providers.firstOrNull { it.first == providerCode } ?: providers.first()
+    val isCash = providerCode == "cash"
+    val balanceEditable = account?.balanceEditable ?: true
+    val defaultCurrency = overview.defaultCurrency ?: account?.currency ?: "RUB"
+
+    FinanceAnimatedDialog(
+        onDismiss = onDismiss,
+        dismissEnabled = !saving
+    ) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = if (account == null) {
+                        if (isRussian) "Добавить счёт" else "Add account"
+                    } else {
+                        if (isRussian) "Изменить счёт" else "Edit account"
+                    },
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = if (isRussian) {
+                        "Выберите тип счёта и укажите текущий баланс. После появления первой транзакции баланс станет историей операций и редактирование суммы заблокируется."
+                    } else {
+                        "Choose the account type and set the current balance. Once the first transaction appears, the amount becomes transaction history and can no longer be edited directly."
+                    },
+                    fontSize = 13.sp,
+                    lineHeight = 20.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = if (isRussian) "Счёт" else "Account type",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Box {
+                        Button(
+                            onClick = { menuExpanded = true },
+                            enabled = !saving,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(selectedProvider.second)
+                                Text("▾", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        DropdownMenu(
+                            expanded = menuExpanded,
+                            onDismissRequest = { menuExpanded = false }
+                        ) {
+                            providers.forEach { (code, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        providerCode = code
+                                        if (code == "cash") {
+                                            nameInput = ""
+                                            makePrimary = false
+                                        }
+                                        menuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (!isCash) {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text(if (isRussian) "Название" else "Name") },
+                        placeholder = { Text(if (isRussian) "Например, Основная карта" else "For example, Main card") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        enabled = !saving,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
+                OutlinedTextField(
+                    value = amountInput,
+                    onValueChange = { amountInput = it },
+                    label = { Text(if (isRussian) "Текущий баланс" else "Current balance") },
+                    placeholder = { Text(if (isRussian) "Например, 12500" else "For example, 12500") },
+                    supportingText = {
                         Text(
-                            text = if (isRussian) "Настройки раздела" else "Module settings",
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.SemiBold,
+                            if (!balanceEditable) {
+                                if (isRussian) "Сумма заблокирована: у счёта уже есть транзакции." else "Amount is locked: this account already has transactions."
+                            } else {
+                                if (isRussian) "Вводи сумму в ${defaultCurrency}." else "Enter amount in ${defaultCurrency}."
+                            }
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    enabled = !saving && balanceEditable,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                if (!isCash) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = !saving) { makePrimary = !makePrimary },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Checkbox(
+                            checked = makePrimary,
+                            onCheckedChange = { makePrimary = it },
+                            enabled = !saving
+                        )
+                        Text(
+                            text = if (isRussian) "Сделать основным счётом" else "Mark as primary account",
+                            fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        Text(
-                            text = if (isRussian) {
-                                "Валюта по умолчанию: ${overview.defaultCurrency ?: "RUB"}"
-                            } else {
-                                "Default currency: ${overview.defaultCurrency ?: "RUB"}"
+                    }
+                }
+
+                if (error != null) {
+                    Text(
+                        text = error ?: "",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = onDismiss,
+                            enabled = !saving,
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Отмена" else "Cancel")
+                        }
+                        Button(
+                            onClick = {
+                                error = null
+                                val amountMinor = if (balanceEditable) parseAmountToMinor(amountInput) else account?.balanceMinor
+                                if (amountMinor == null) {
+                                    error = if (isRussian) "Укажи корректную сумму." else "Enter a valid amount."
+                                    return@Button
+                                }
+                                if (!isCash && nameInput.trim().isEmpty()) {
+                                    error = if (isRussian) "Укажи название счёта." else "Enter the account name."
+                                    return@Button
+                                }
+                                saving = true
+                                val finalName = if (isCash) {
+                                    if (isRussian) "Наличные" else "Cash"
+                                } else {
+                                    nameInput.trim()
+                                }
+                                val finalPrimary = if (isCash) false else makePrimary
+                                val finalProviderCode = if (account?.kind == "cash") account.providerCode else providerCode
+                                val finalAmount = if (balanceEditable) amountMinor else (account?.balanceMinor ?: amountMinor)
+                                val accountId = account?.id
+                                coroutineScope.launch {
+                                    runCatching {
+                                        financeRepository.upsertAccount(
+                                            id = accountId,
+                                            providerCode = finalProviderCode,
+                                            balanceMinor = finalAmount,
+                                            currency = defaultCurrency,
+                                            name = finalName,
+                                            makePrimary = finalPrimary
+                                        )
+                                    }.onSuccess(onSaved)
+                                        .onFailure { saveError ->
+                                            error = saveError.message ?: if (isRussian) {
+                                                "Не удалось сохранить счёт."
+                                            } else {
+                                                "Failed to save account."
+                                            }
+                                        }
+                                    saving = false
+                                }
                             },
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            enabled = !saving,
+                            shape = RoundedCornerShape(14.dp)
+                        ) {
+                            Text(
+                                if (saving) {
+                                    if (isRussian) "Сохраняем…" else "Saving…"
+                                } else {
+                                    if (account == null) {
+                                        if (isRussian) "Создать" else "Create"
+                                    } else {
+                                        if (isRussian) "Сохранить" else "Save"
+                                    }
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun FinanceMethodButton(
+    eyebrow: String,
+    title: String,
+    body: String,
+    onClick: () -> Unit,
+    emphasized: Boolean = false
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(22.dp),
+        color = if (emphasized) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, if (emphasized) MaterialTheme.colorScheme.primary.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outline),
+        tonalElevation = if (emphasized) 3.dp else 1.dp
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 18.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = eyebrow,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (emphasized) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
+            Text(body, fontSize = 13.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun FinanceDraftEditor(
+    isRussian: Boolean,
+    overview: FinanceOverview,
+    draft: FinanceDraftState,
+    categoryOptions: List<Pair<String, String>>,
+    onDraftChange: (FinanceDraftState) -> Unit
+) {
+    var accountMenuExpanded by remember { mutableStateOf(false) }
+    var destinationMenuExpanded by remember { mutableStateOf(false) }
+    val account = overview.accounts.firstOrNull { it.id == draft.accountId } ?: overview.accounts.first()
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = if (isRussian) "Основное" else "Basics",
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    listOf("expense", "income", "transfer").forEachIndexed { index, value ->
+                        SegmentedButton(
+                            selected = draft.direction == value,
+                            onClick = {
+                                onDraftChange(
+                                    draft.copy(
+                                        direction = value,
+                                        items = if (value == "transfer") draft.items.take(1) else if (draft.items.isEmpty()) listOf(FinanceDraftItemState()) else draft.items
+                                    )
+                                )
+                            },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = 3)
+                        ) {
+                            Text(
+                                when (value) {
+                                    "expense" -> if (isRussian) "Расход" else "Expense"
+                                    "income" -> if (isRussian) "Доход" else "Income"
+                                    else -> if (isRussian) "Перевод" else "Transfer"
+                                }
+                            )
+                        }
+                    }
+                }
+
+                Box {
+                    Button(
+                        onClick = { accountMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(account.name)
+                            Text("▾")
+                        }
+                    }
+                    DropdownMenu(expanded = accountMenuExpanded, onDismissRequest = { accountMenuExpanded = false }) {
+                        overview.accounts.forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option.name) },
+                                onClick = {
+                                    onDraftChange(draft.copy(accountId = option.id, currency = option.currency))
+                                    accountMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                if (draft.direction == "transfer") {
+                    Box {
+                        Button(
+                            onClick = { destinationMenuExpanded = true },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(
+                                    overview.accounts.firstOrNull { it.id == draft.destinationAccountId }?.name
+                                        ?: if (isRussian) "Куда перевести" else "Destination account"
+                                )
+                                Text("▾")
+                            }
+                        }
+                        DropdownMenu(expanded = destinationMenuExpanded, onDismissRequest = { destinationMenuExpanded = false }) {
+                            overview.accounts.filter { it.id != draft.accountId }.forEach { option ->
+                                DropdownMenuItem(
+                                    text = { Text(option.name) },
+                                    onClick = {
+                                        onDraftChange(draft.copy(destinationAccountId = option.id))
+                                        destinationMenuExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = draft.happenedAt,
+                    onValueChange = { onDraftChange(draft.copy(happenedAt = it)) },
+                    label = { Text(if (isRussian) "Дата и время" else "Date and time") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = draft.title,
+                    onValueChange = { onDraftChange(draft.copy(title = it)) },
+                    label = { Text(if (isRussian) "Описание" else "Description") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = draft.merchantName,
+                    onValueChange = { onDraftChange(draft.copy(merchantName = it)) },
+                    label = { Text(if (isRussian) "Магазин / источник" else "Merchant / source") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        Surface(
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = if (isRussian) "Позиции" else "Items",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    if (draft.direction != "transfer") {
+                        TextButton(onClick = { onDraftChange(draft.copy(items = draft.items + FinanceDraftItemState())) }) {
+                            Text(if (isRussian) "Добавить" else "Add")
+                        }
+                    }
+                }
+
+                draft.items.forEachIndexed { index, item ->
+                    FinanceDraftItemEditor(
+                        isRussian = isRussian,
+                        index = index,
+                        item = item,
+                        showCategory = draft.direction != "transfer",
+                        categoryOptions = categoryOptions,
+                        canRemove = draft.direction != "transfer" && draft.items.size > 1,
+                        onChange = { next ->
+                            onDraftChange(draft.copy(items = draft.items.map { current -> if (current.id == item.id) next else current }))
+                        },
+                        onRemove = {
+                            onDraftChange(draft.copy(items = draft.items.filterNot { current -> current.id == item.id }))
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceDraftItemEditor(
+    isRussian: Boolean,
+    index: Int,
+    item: FinanceDraftItemState,
+    showCategory: Boolean,
+    categoryOptions: List<Pair<String, String>>,
+    canRemove: Boolean,
+    onChange: (FinanceDraftItemState) -> Unit,
+    onRemove: () -> Unit
+) {
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    text = if (isRussian) "Позиция ${index + 1}" else "Item ${index + 1}",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (canRemove) {
+                    Text(
+                        text = if (isRussian) "Удалить" else "Remove",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.clickable(onClick = onRemove)
+                    )
+                }
+            }
+
+            OutlinedTextField(
+                value = item.title,
+                onValueChange = { onChange(item.copy(title = it)) },
+                label = { Text(if (isRussian) "Название позиции" else "Item title") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            OutlinedTextField(
+                value = item.amount,
+                onValueChange = { onChange(item.copy(amount = it)) },
+                label = { Text(if (isRussian) "Сумма" else "Amount") },
+                singleLine = true,
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            if (showCategory) {
+                Box {
+                    Button(
+                        onClick = { categoryMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            contentColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    ) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(categoryOptions.firstOrNull { it.first == item.categoryId }?.second ?: if (isRussian) "Выбрать категорию" else "Choose category")
+                            Text("▾")
+                        }
+                    }
+                    DropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                        categoryOptions.forEach { (id, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                onClick = {
+                                    onChange(item.copy(categoryId = id))
+                                    categoryMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceTransactionsMonthBlock(
+    isRussian: Boolean,
+    loading: Boolean,
+    error: String?,
+    transactionsMonth: FinanceTransactionsMonth?
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = if (isRussian) "Транзакции" else "Transactions",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        when {
+            loading -> Text(
+                text = if (isRussian) "Загружаем транзакции…" else "Loading transactions…",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            error != null -> Text(
+                text = error,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.error
+            )
+            transactionsMonth?.transactions.isNullOrEmpty() -> Text(
+                text = if (isRussian) "За этот месяц операций пока нет." else "No operations for this month yet.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            else -> transactionsMonth!!.transactions.forEach { transaction ->
+                FinanceTransactionRow(isRussian = isRussian, transaction = transaction)
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceTransactionRow(
+    isRussian: Boolean,
+    transaction: com.assistant.app.finance.FinanceTransaction
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.66f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    text = transaction.title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = buildString {
+                        append(transaction.accountName)
+                        if (!transaction.destinationAccountName.isNullOrBlank()) {
+                            append(" → ")
+                            append(transaction.destinationAccountName)
+                        }
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = transaction.happenedAt.take(16).replace('T', ' '),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = buildString {
+                        if (!transaction.categoryName.isNullOrBlank()) {
+                            append(transaction.categoryName)
+                        } else if (transaction.items.isNotEmpty()) {
+                            append(
+                                if (isRussian) {
+                                    "Позиций: ${transaction.items.size}"
+                                } else {
+                                    "Items: ${transaction.items.size}"
+                                }
+                            )
+                        }
+                        if (isNotEmpty()) append(" · ")
+                        append(
+                            when (transaction.sourceType) {
+                                "photo" -> if (isRussian) "Фото" else "Photo"
+                                "file" -> if (isRussian) "Файл" else "File"
+                                else -> if (isRussian) "Вручную" else "Manual"
+                            }
+                        )
+                    },
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (transaction.items.size > 1) {
+                    Text(
+                        text = transaction.items.joinToString(
+                            separator = " · ",
+                            limit = 3,
+                            truncated = if (isRussian) "ещё" else "more"
+                        ) { item -> item.title },
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Text(
+                text = formatMoney(
+                    amountMinor = when (transaction.direction) {
+                        "expense" -> -kotlin.math.abs(transaction.amountMinor)
+                        "income" -> kotlin.math.abs(transaction.amountMinor)
+                        else -> transaction.amountMinor
+                    },
+                    currencyCode = transaction.currency,
+                    isRussian = isRussian
+                ),
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+private fun FinanceCategoriesBlock(
+    isRussian: Boolean,
+    loading: Boolean,
+    error: String?,
+    categories: List<FinanceCategory>
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            text = if (isRussian) "Категории" else "Categories",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        when {
+            loading -> Text(
+                text = if (isRussian) "Загружаем дерево категорий…" else "Loading category tree…",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            error != null -> Text(
+                text = error,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.error
+            )
+            categories.isEmpty() -> Text(
+                text = if (isRussian) "Категории ещё не заведены." else "No categories yet.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            else -> {
+                val grouped = buildFinanceCategoryForest(categories)
+                listOf("expense", "income").forEach { direction ->
+                    val title = if (direction == "expense") {
+                        if (isRussian) "Расходы" else "Expenses"
+                    } else {
+                        if (isRussian) "Доходы" else "Income"
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Text(
+                                text = title,
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            grouped.getValue(direction).forEach { node ->
+                                FinanceCategoryNodeView(node = node, depth = 0)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FinanceCategoryNodeView(
+    node: FinanceCategoryNode,
+    depth: Int
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.54f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = (12 + depth * 20).dp, top = 12.dp, end = 12.dp, bottom = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(MaterialTheme.colorScheme.secondary, CircleShape)
+                )
+                Text(
+                    text = node.category.name,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+        node.children.forEach { child ->
+            FinanceCategoryNodeView(node = child, depth = depth + 1)
+        }
+    }
+}
+
+@Composable
+private fun FinanceAnalyticsBlock(isRussian: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(22.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = if (isRussian) "Аналитика" else "Analytics",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = if (isRussian) {
+                    "Аналитика пока остаётся разделом в разработке. Контракт данных и навигация уже готовы."
+                } else {
+                    "Analytics intentionally remains in development for now. Navigation and data contract are ready."
+                },
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+private fun buildFinanceCategoryForest(categories: List<FinanceCategory>): Map<String, List<FinanceCategoryNode>> {
+    val byParent = categories.groupBy { it.parentId }
+
+    fun build(parentId: String?): List<FinanceCategoryNode> =
+        byParent[parentId]
+            .orEmpty()
+            .sortedBy { it.displayOrder }
+            .map { FinanceCategoryNode(it, build(it.id)) }
+
+    return mapOf(
+        "expense" to build(null).filter { it.category.direction == "expense" },
+        "income" to build(null).filter { it.category.direction == "income" }
+    )
+}
+
+private data class FinanceCreatePayload(
+    val accountId: String,
+    val direction: String,
+    val title: String?,
+    val note: String?,
+    val amountMinor: Long?,
+    val currency: String?,
+    val happenedAt: String?,
+    val categoryId: String?,
+    val items: List<com.assistant.app.finance.FinanceTransactionItemDraft>,
+    val destinationAccountId: String?,
+    val sourceType: String,
+    val merchantName: String?
+)
+
+private fun FinanceCreatePayload.toRepositoryRequest(): com.assistant.app.finance.FinanceCreateTransactionRequest =
+    com.assistant.app.finance.FinanceCreateTransactionRequest(
+        accountId = accountId,
+        direction = direction,
+        title = title,
+        note = note,
+        amountMinor = amountMinor,
+        currency = currency,
+        happenedAt = happenedAt,
+        categoryId = categoryId,
+        items = items,
+        destinationAccountId = destinationAccountId,
+        sourceType = sourceType,
+        merchantName = merchantName
+    )
+
+private fun createManualFinanceDraft(
+    overview: FinanceOverview,
+    sourceType: String = "manual"
+): FinanceDraftState {
+    val account = overview.accounts.firstOrNull { it.isPrimary } ?: overview.accounts.first()
+    return FinanceDraftState(
+        sourceType = sourceType,
+        documentKind = if (sourceType == "manual") "manual" else "image",
+        accountId = account.id,
+        currency = account.currency
+    )
+}
+
+private fun financeDraftFromImport(
+    draft: com.assistant.app.finance.FinanceImportDraft,
+    overview: FinanceOverview
+): FinanceDraftState {
+    val account = overview.accounts.firstOrNull { it.isPrimary } ?: overview.accounts.first()
+    return FinanceDraftState(
+        sourceType = draft.sourceType,
+        documentKind = draft.documentKind,
+        direction = draft.direction,
+        title = draft.title,
+        merchantName = draft.merchantName.orEmpty(),
+        note = draft.note.orEmpty(),
+        accountId = account.id,
+        currency = draft.currency,
+        happenedAt = draft.happenedAt ?: isoNowLocal(),
+        items = draft.items.ifEmpty {
+            listOf(com.assistant.app.finance.FinanceImportDraftItem(draft.title, draft.amountMinor, null, null, null, null))
+        }.map { item ->
+            FinanceDraftItemState(
+                title = item.title,
+                amount = minorToInput(item.amountMinor),
+                categoryId = item.suggestedCategoryId
+            )
+        }
+    )
+}
+
+private fun buildFinanceCategoryOptions(
+    categories: List<FinanceCategory>,
+    direction: String
+): List<Pair<String, String>> {
+    val byId = categories.associateBy { it.id }
+    return categories
+        .filter { it.direction == direction }
+        .sortedWith(compareBy<FinanceCategory> { categoryDepth(it, byId) }.thenBy { it.displayOrder }.thenBy { it.name })
+        .map { category -> category.id to buildCategoryPath(category, byId) }
+}
+
+private fun categoryDepth(category: FinanceCategory, byId: Map<String, FinanceCategory>): Int {
+    var depth = 0
+    var current = category.parentId?.let(byId::get)
+    while (current != null) {
+        depth += 1
+        current = current.parentId?.let(byId::get)
+    }
+    return depth
+}
+
+private fun buildCategoryPath(category: FinanceCategory, byId: Map<String, FinanceCategory>): String {
+    val path = mutableListOf(category.name)
+    var current = category.parentId?.let(byId::get)
+    while (current != null) {
+        path += current.name
+        current = current.parentId?.let(byId::get)
+    }
+    return path.asReversed().joinToString(" › ")
+}
+
+private fun FinanceDraftState.canSave(): Boolean {
+    if (accountId.isBlank()) return false
+    if (direction == "transfer") {
+        return destinationAccountId.isNotBlank() && (parseAmountToMinor(items.firstOrNull()?.amount.orEmpty()) ?: 0) > 0
+    }
+    return items.isNotEmpty() && items.all { item ->
+        (parseAmountToMinor(item.amount) ?: 0) > 0
+    }
+}
+
+private fun FinanceDraftState.toRepositoryPayload(): FinanceCreatePayload {
+    val normalizedItems = items.mapNotNull { item ->
+        val amountMinor = parseAmountToMinor(item.amount) ?: return@mapNotNull null
+        if (amountMinor <= 0) return@mapNotNull null
+        com.assistant.app.finance.FinanceTransactionItemDraft(
+            title = item.title.ifBlank { if (direction == "income") "Поступление" else "Позиция" },
+            amountMinor = amountMinor,
+            categoryId = item.categoryId
+        )
+    }
+    val totalMinor = normalizedItems.sumOf { it.amountMinor }
+    return FinanceCreatePayload(
+        accountId = accountId,
+        direction = direction,
+        title = title.ifBlank { null },
+        note = note.ifBlank { null },
+        amountMinor = if (direction == "transfer") parseAmountToMinor(items.firstOrNull()?.amount.orEmpty()) else totalMinor,
+        currency = currency,
+        happenedAt = happenedAt,
+        categoryId = if (normalizedItems.size == 1) normalizedItems.first().categoryId else null,
+        items = if (direction == "transfer") emptyList() else normalizedItems,
+        destinationAccountId = destinationAccountId.ifBlank { null },
+        sourceType = sourceType,
+        merchantName = merchantName.ifBlank { null }
+    )
+}
+
+private fun isoNowLocal(): String = java.time.OffsetDateTime.now().withNano(0).toString()
+
+private fun minorToInput(amountMinor: Long): String {
+    val amount = amountMinor / 100.0
+    return if (kotlin.math.abs(amount % 1.0) < 0.000001) {
+        amount.toLong().toString()
+    } else {
+        amount.toString().replace('.', ',')
+    }
+}
+
+private fun bitmapToJpeg(bitmap: Bitmap): ByteArray {
+    val stream = ByteArrayOutputStream()
+    bitmap.compress(Bitmap.CompressFormat.JPEG, 94, stream)
+    return stream.toByteArray()
+}
+
+private suspend fun readBytesFromUri(
+    context: android.content.Context,
+    uri: android.net.Uri
+): Triple<String, String, ByteArray> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+    val resolver = context.contentResolver
+    val fileName = resolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)
+        ?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+        ?: "document-${System.currentTimeMillis()}"
+    val mimeType = resolver.getType(uri) ?: when {
+        fileName.endsWith(".pdf", true) -> "application/pdf"
+        fileName.endsWith(".eml", true) -> "message/rfc822"
+        else -> "image/jpeg"
+    }
+    val bytes = resolver.openInputStream(uri)?.use { it.readBytes() }
+        ?: error("Unable to open selected file.")
+    Triple(fileName, mimeType, bytes)
+}
+
+private fun defaultOverviewCardIds(): List<String> = listOf(
+    "total_balance",
+    "card_balance",
+    "cash_balance",
+    "month_income",
+    "month_expense",
+    "month_result",
+    "recent_transactions"
+)
+
+private fun financeAccountProviders(isRussian: Boolean): List<Pair<String, String>> = if (isRussian) {
+    listOf(
+        "tbank" to "Т-Банк",
+        "sber" to "Сбер",
+        "alfabank" to "Альфа",
+        "vtb" to "ВТБ",
+        "yandex" to "Яндекс Банк",
+        "cash" to "Наличные"
+    )
+} else {
+    listOf(
+        "tbank" to "T-Bank",
+        "sber" to "Sber",
+        "alfabank" to "Alfa",
+        "vtb" to "VTB",
+        "yandex" to "Yandex Bank",
+        "cash" to "Cash"
+    )
+}
+
+private fun toggleOverviewCard(cards: List<String>, cardId: String, enabled: Boolean): List<String> {
+    val next = cards.toMutableList()
+    if (enabled) {
+        if (!next.contains(cardId)) next += cardId
+    } else {
+        next.removeAll { it == cardId }
+    }
+    return next
+}
+
+private fun moveOverviewCard(cards: List<String>, cardId: String, direction: Int): List<String> {
+    val next = cards.toMutableList()
+    val index = next.indexOf(cardId)
+    if (index == -1) return next
+    val target = (index + direction).coerceIn(0, next.lastIndex)
+    if (index == target) return next
+    val item = next.removeAt(index)
+    next.add(target, item)
+    return next
+}
+
+private fun moveOverviewCardToIndex(cards: List<String>, cardId: String, targetIndex: Int): List<String> {
+    val next = cards.toMutableList()
+    val currentIndex = next.indexOf(cardId)
+    if (currentIndex == -1) return next
+    val clampedTarget = targetIndex.coerceIn(0, next.lastIndex)
+    if (currentIndex == clampedTarget) return next
+    val item = next.removeAt(currentIndex)
+    next.add(clampedTarget, item)
+    return next
+}
+
+private fun financeOverviewCardLabel(cardId: String, isRussian: Boolean): String = when (cardId) {
+    "total_balance" -> if (isRussian) "Общий баланс" else "Total balance"
+    "card_balance" -> if (isRussian) "На картах" else "On cards"
+    "cash_balance" -> if (isRussian) "Наличные" else "Cash"
+    "month_income" -> if (isRussian) "Доходы за месяц" else "Month income"
+    "month_expense" -> if (isRussian) "Расходы за месяц" else "Month expense"
+    "month_result" -> if (isRussian) "Результат месяца" else "Month result"
+    "recent_transactions" -> if (isRussian) "Краткий список транзакций" else "Short transaction list"
+    else -> cardId
+}
+
+private fun financeOverviewCardAccent(cardId: String): Color = when (cardId) {
+    "total_balance" -> Color(0xFF23E08A)
+    "card_balance" -> Color(0xFF5C85FF)
+    "cash_balance" -> Color(0xFFD69A3F)
+    "month_income" -> Color(0xFF23E08A)
+    "month_expense" -> Color(0xFFFF6F8E)
+    "month_result" -> Color(0xFFFF6F8E)
+    else -> Color.White
 }
 
 @Composable
@@ -1415,6 +3797,475 @@ private fun DashboardPlaceholderCard(
                             color = Color(0xFF04120E),
                             fontWeight = FontWeight.SemiBold
                         )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionCard(
+    isRussian: Boolean,
+    subsection: DashboardSubsection,
+    snapshot: SettingsSnapshot?,
+    loading: Boolean,
+    banner: Pair<Boolean, String>?,
+    onBannerChange: (Pair<Boolean, String>?) -> Unit,
+    onReload: () -> Unit,
+    onSaveDisplayName: (String) -> Unit,
+    onSaveEmail: (String) -> Unit,
+    onSaveGemini: (String) -> Unit,
+    onSavePassword: (String) -> Unit,
+    onLinkGoogle: () -> Unit,
+    onUnlinkGoogle: (String) -> Unit,
+    onDeleteAccount: () -> Unit,
+    onSignOut: () -> Unit
+) {
+    var displayName by remember(snapshot?.displayName) { mutableStateOf(snapshot?.displayName.orEmpty()) }
+    var email by remember(snapshot?.email) { mutableStateOf(snapshot?.email.orEmpty()) }
+    var geminiKey by remember(snapshot?.geminiApiKey) { mutableStateOf(snapshot?.geminiApiKey.orEmpty()) }
+    var password by remember { mutableStateOf("") }
+    var passwordConfirm by remember { mutableStateOf("") }
+    var deleteConfirm by remember { mutableStateOf("") }
+    var deleteDialogOpen by rememberSaveable { mutableStateOf(false) }
+
+    val googleIdentity = snapshot?.identities?.firstOrNull { it.provider == "google" }
+    val hasGoogleLinked = googleIdentity != null
+    val needsDeleteWord = if (isRussian) "удалить" else "delete"
+
+    GlassSurface(modifier = Modifier.fillMaxWidth()) {
+        Column(verticalArrangement = Arrangement.spacedBy(18.dp)) {
+            if (banner != null) {
+                Surface(
+                    shape = RoundedCornerShape(18.dp),
+                    color = if (banner.first) {
+                        Color(0xFF10B981).copy(alpha = 0.16f)
+                    } else {
+                        Color(0xFFFB7185).copy(alpha = 0.16f)
+                    },
+                    border = BorderStroke(
+                        1.dp,
+                        if (banner.first) Color(0xFF10B981).copy(alpha = 0.35f) else Color(0xFFFB7185).copy(alpha = 0.35f)
+                    )
+                ) {
+                    Text(
+                        text = banner.second,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 13.sp,
+                        lineHeight = 19.sp
+                    )
+                }
+            }
+
+            if (loading) {
+                Text(
+                    text = if (isRussian) "Загружаем настройки…" else "Loading settings…",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            when (subsection) {
+                DashboardSubsection.Profile -> {
+                    Text(
+                        text = if (isRussian) "Профиль" else "Profile",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isRussian) {
+                            "Имя профиля и почта управляются через Supabase Auth и таблицу profiles."
+                        } else {
+                            "Your profile name and email are managed through Supabase Auth and the profiles table."
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 21.sp
+                    )
+
+                    OutlinedTextField(
+                        value = displayName,
+                        onValueChange = {
+                            displayName = it
+                            onBannerChange(null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (isRussian) "Имя" else "Name") },
+                        placeholder = { Text(if (isRussian) "Как к вам обращаться?" else "How should we address you?") }
+                    )
+                    Button(
+                        onClick = {
+                            if (displayName.trim().isBlank()) {
+                                onBannerChange(false to if (isRussian) "Имя не может быть пустым." else "Name cannot be empty.")
+                            } else {
+                                onSaveDisplayName(displayName.trim())
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(if (isRussian) "Сохранить имя" else "Save name")
+                    }
+
+                    OutlinedTextField(
+                        value = email,
+                        onValueChange = {
+                            email = it
+                            onBannerChange(null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Email") },
+                        placeholder = { Text("you@example.com") }
+                    )
+                    Button(
+                        onClick = {
+                            if (!email.contains("@") || !email.contains(".")) {
+                                onBannerChange(false to if (isRussian) "Введите корректный email." else "Enter a valid email.")
+                            } else {
+                                onSaveEmail(email.trim())
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(if (isRussian) "Сменить почту" else "Change email")
+                    }
+                }
+
+                DashboardSubsection.Preferences -> {
+                    Text(
+                        text = if (isRussian) "Параметры и интеграции" else "Preferences and integrations",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isRussian) {
+                            "Сохраняем Gemini API Key в Supabase. Позже используем его в AI-сценариях."
+                        } else {
+                            "The Gemini API key is stored in Supabase and will be used later in AI workflows."
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 21.sp
+                    )
+
+                    OutlinedTextField(
+                        value = geminiKey,
+                        onValueChange = {
+                            geminiKey = it
+                            onBannerChange(null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Gemini API Key") },
+                        placeholder = { Text("AIza...") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    Button(
+                        onClick = { onSaveGemini(geminiKey.trim()) },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(if (isRussian) "Сохранить ключ" else "Save key")
+                    }
+
+                    Text(
+                        text = if (isRussian) {
+                            "Бесплатный ключ можно получить в Google AI Studio: https://aistudio.google.com/app/apikey"
+                        } else {
+                            "You can get a free key in Google AI Studio: https://aistudio.google.com/app/apikey"
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 13.sp,
+                        lineHeight = 20.sp
+                    )
+                }
+
+                DashboardSubsection.Security -> {
+                    Text(
+                        text = if (isRussian) "Безопасность" else "Security",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isRussian) {
+                            "Пароль, связанные identity и критические действия аккаунта."
+                        } else {
+                            "Password, linked identities, and destructive account actions."
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 21.sp
+                    )
+
+                    OutlinedTextField(
+                        value = password,
+                        onValueChange = {
+                            password = it
+                            onBannerChange(null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (isRussian) "Новый пароль" else "New password") },
+                        placeholder = { Text(if (isRussian) "Минимум 8 символов" else "At least 8 characters") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    OutlinedTextField(
+                        value = passwordConfirm,
+                        onValueChange = {
+                            passwordConfirm = it
+                            onBannerChange(null)
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (isRussian) "Повторите пароль" else "Confirm password") },
+                        placeholder = { Text(if (isRussian) "Минимум 8 символов" else "At least 8 characters") },
+                        visualTransformation = PasswordVisualTransformation()
+                    )
+                    Button(
+                        onClick = {
+                            when {
+                                password.length < 8 -> onBannerChange(false to if (isRussian) "Пароль должен содержать минимум 8 символов." else "Password must contain at least 8 characters.")
+                                password != passwordConfirm -> onBannerChange(false to if (isRussian) "Пароли не совпадают." else "Passwords do not match.")
+                                else -> onSavePassword(password)
+                            }
+                        },
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Text(if (isRussian) "Обновить пароль" else "Update password")
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = if (isRussian) "Google аккаунт" else "Google account",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (hasGoogleLinked) {
+                                        if (isRussian) "Google уже привязан к аккаунту." else "Google is already linked to the account."
+                                    } else {
+                                        if (isRussian) "Привяжите Google для быстрого входа." else "Link Google for faster sign-in."
+                                    },
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = {
+                                    if (hasGoogleLinked) {
+                                        val linkedCount = snapshot?.identities?.size ?: 0
+                                        if (linkedCount < 2) {
+                                            onBannerChange(false to if (isRussian) {
+                                                "Нельзя отвязать единственный способ входа. Сначала задайте пароль или добавьте другую identity."
+                                            } else {
+                                                "You cannot unlink the only sign-in method. Set a password or add another identity first."
+                                            })
+                                        } else {
+                                            googleIdentity?.identityId?.let(onUnlinkGoogle)
+                                        }
+                                    } else {
+                                        onLinkGoogle()
+                                    }
+                                },
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    if (hasGoogleLinked) {
+                                        if (isRussian) "Отключить" else "Disconnect"
+                                    } else {
+                                        if (isRussian) "Подключить Google" else "Connect Google"
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.55f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text(
+                                    text = if (isRussian) "Выход из аккаунта" else "Sign out",
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = if (isRussian) "Текущая сессия будет завершена на этом устройстве." else "The current session will be closed on this device.",
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    fontSize = 13.sp,
+                                    lineHeight = 19.sp
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Button(
+                                onClick = onSignOut,
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(if (isRussian) "Выйти" else "Sign out")
+                            }
+                        }
+                    }
+
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xFFFB7185).copy(alpha = 0.12f),
+                        border = BorderStroke(1.dp, Color(0xFFFB7185).copy(alpha = 0.35f))
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = if (isRussian) "Удаление аккаунта" else "Delete account",
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = if (isRussian) {
+                                    "Действие необратимо. Все пользовательские данные и сессии будут удалены."
+                                } else {
+                                    "This action is irreversible. All user data and sessions will be removed."
+                                },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp,
+                                lineHeight = 19.sp
+                            )
+                            Button(
+                                onClick = { deleteDialogOpen = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFFFB7185).copy(alpha = 0.2f),
+                                    contentColor = MaterialTheme.colorScheme.onSurface
+                                ),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(if (isRussian) "Удалить аккаунт" else "Delete account")
+                            }
+                        }
+                    }
+                }
+
+                else -> {
+                    Text(
+                        text = if (isRussian) "Настройки" else "Settings",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isRussian) "Выберите подраздел настроек выше." else "Choose a settings subsection above.",
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (snapshot == null && !loading) {
+                Button(
+                    onClick = onReload,
+                    shape = RoundedCornerShape(16.dp)
+                ) {
+                    Text(if (isRussian) "Повторить загрузку" else "Retry")
+                }
+            }
+        }
+    }
+
+    if (deleteDialogOpen) {
+        Dialog(onDismissRequest = { deleteDialogOpen = false }) {
+            Surface(
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    Text(
+                        text = if (isRussian) "Подтвердите удаление аккаунта" else "Confirm account deletion",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = if (isRussian) {
+                            "Введите слово «удалить», чтобы безвозвратно удалить аккаунт."
+                        } else {
+                            "Type “delete” to permanently remove the account."
+                        },
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 20.sp
+                    )
+                    OutlinedTextField(
+                        value = deleteConfirm,
+                        onValueChange = { deleteConfirm = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(if (isRussian) "Подтверждение" else "Confirmation") },
+                        placeholder = { Text(needsDeleteWord) }
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Button(
+                            onClick = { deleteDialogOpen = false },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Отмена" else "Cancel")
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Button(
+                            onClick = {
+                                if (deleteConfirm.trim().lowercase() != needsDeleteWord) {
+                                    onBannerChange(false to if (isRussian) {
+                                        "Введите слово «удалить» для подтверждения."
+                                    } else {
+                                        "Type “delete” to confirm."
+                                    })
+                                } else {
+                                    deleteDialogOpen = false
+                                    onDeleteAccount()
+                                }
+                            },
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFB7185).copy(alpha = 0.2f),
+                                contentColor = MaterialTheme.colorScheme.onSurface
+                            )
+                        ) {
+                            Text(if (isRussian) "Подтвердить" else "Confirm")
+                        }
                     }
                 }
             }
@@ -2474,7 +5325,15 @@ private fun formatMoney(amountMinor: Long, currencyCode: String, isRussian: Bool
     runCatching {
         format.currency = Currency.getInstance(currencyCode)
     }
-    return format.format(amountMinor / 100.0)
+    val amount = amountMinor / 100.0
+    if (kotlin.math.abs(amount % 1.0) < 0.000001) {
+        format.minimumFractionDigits = 0
+        format.maximumFractionDigits = 0
+    } else {
+        format.minimumFractionDigits = 2
+        format.maximumFractionDigits = 2
+    }
+    return format.format(amount)
 }
 
 private fun parseAmountToMinor(raw: String): Long? {
@@ -2486,6 +5345,25 @@ private fun parseAmountToMinor(raw: String): Long? {
     return amount.multiply(java.math.BigDecimal(100))
         .setScale(0, java.math.RoundingMode.HALF_UP)
         .longValueExact()
+}
+
+private fun formatMonthLabel(month: String, isRussian: Boolean): String {
+    val locale = if (isRussian) Locale.forLanguageTag("ru-RU") else Locale.US
+    return runCatching {
+        val parts = month.split("-")
+        val year = parts[0].toInt()
+        val monthValue = parts[1].toInt()
+        java.time.YearMonth.of(year, monthValue)
+            .atDay(1)
+            .month
+            .getDisplayName(java.time.format.TextStyle.FULL_STANDALONE, locale)
+            .replaceFirstChar { if (it.isLowerCase()) it.titlecase(locale) else it.toString() } + " " + year
+    }.getOrElse { month }
+}
+
+private fun currentMonthLabel(isRussian: Boolean): String {
+    val now = java.time.LocalDate.now()
+    return formatMonthLabel("${now.year}-${now.monthValue.toString().padStart(2, '0')}", isRussian)
 }
 
 private fun dashboardMetrics(isRussian: Boolean): List<MetricItem> = listOf(
@@ -2540,7 +5418,8 @@ private fun dashboardSectionCopy(isRussian: Boolean): Map<DashboardSection, Dash
                     DashboardNavItem(DashboardSubsection.Overview, "Обзор"),
                     DashboardNavItem(DashboardSubsection.Accounts, "Счета"),
                     DashboardNavItem(DashboardSubsection.Transactions, "Транзакции"),
-                    DashboardNavItem(DashboardSubsection.Settings, "Настройки")
+                    DashboardNavItem(DashboardSubsection.Categories, "Категории"),
+                    DashboardNavItem(DashboardSubsection.Analytics, "Аналитика")
                 )
             ),
             DashboardSection.Health to DashboardSectionText(
@@ -2614,7 +5493,8 @@ private fun dashboardSectionCopy(isRussian: Boolean): Map<DashboardSection, Dash
                     DashboardNavItem(DashboardSubsection.Overview, "Overview"),
                     DashboardNavItem(DashboardSubsection.Accounts, "Accounts"),
                     DashboardNavItem(DashboardSubsection.Transactions, "Transactions"),
-                    DashboardNavItem(DashboardSubsection.Settings, "Settings")
+                    DashboardNavItem(DashboardSubsection.Categories, "Categories"),
+                    DashboardNavItem(DashboardSubsection.Analytics, "Analytics")
                 )
             ),
             DashboardSection.Health to DashboardSectionText(

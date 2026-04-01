@@ -13,6 +13,7 @@ import {
   FinanceOnboardingState,
 } from "../../types";
 import { FinancePanel, parseAmountToMinor } from './FinancePanel';
+import { SettingsPanel } from "./SettingsPanel";
 import { getDashboardShellConfig, getDefaultSubsection } from "./shellConfig";
 
 function formatUserName(user: User | null, fallback: string) {
@@ -169,7 +170,8 @@ export function AppHomePage() {
       subsection === "overview" ||
       subsection === "accounts" ||
       subsection === "transactions" ||
-      subsection === "settings"
+      subsection === "categories" ||
+      subsection === "analytics"
     )) {
       setFinanceTab(subsection);
     }
@@ -266,16 +268,12 @@ export function AppHomePage() {
           <TopNav variant="auth" />
         </div>
 
-        <section
-          className={`dashboard-stage-shell ${
-            isChatSection ? "dashboard-stage-shell--chat" : "dashboard-stage-shell--dashboard"
+        <div
+          className={`dashboard-stage-content ${
+            isChatSection ? "dashboard-stage-content--chat" : "dashboard-stage-content--dashboard"
           }`}
         >
-          <div
-            className={`dashboard-stage-content ${
-              isChatSection ? "dashboard-stage-content--chat" : "dashboard-stage-content--dashboard"
-            }`}
-          >
+          {section === "finance" ? null : (
             <header
               className={`dashboard-shell-header ${
                 isChatSection ? "dashboard-shell-header--chat" : "dashboard-shell-header--dashboard"
@@ -294,66 +292,52 @@ export function AppHomePage() {
                     key={item.id}
                     className={`dashboard-secondary-item ${activeSubsection.id === item.id ? "active" : ""}`}
                     type="button"
-                    onClick={() => {
-                      setSubsection(item.id);
-                      if (
-                        section === "finance" &&
-                        (item.id === "overview" ||
-                          item.id === "accounts" ||
-                          item.id === "transactions" ||
-                          item.id === "settings")
-                      ) {
-                        onSetFinanceTab(item.id);
-                      }
-                    }}
+                    onClick={() => setSubsection(item.id)}
                   >
                     {item.label}
                   </button>
                 ))}
               </nav>
             </header>
+          )}
 
-            <div className="dashboard-content-stage" key={`${lang}-${section}-${activeSubsection.id}`}>
-              {section === "finance" ? (
-                <FinancePanel
-                  lang={lang}
-                  overview={financeOverview}
-                  loading={financeLoading}
-                  error={financeError}
-                  financeTab={financeTab}
-                  onTabChange={onSetFinanceTab}
-                  onboarding={financeOnboarding}
-                  onboardingStep={financeOnboardingStep}
-                  onSetOnboarding={(patch) =>
-                    setFinanceOnboarding((current) => ({ ...current, ...patch }))
-                  }
-                  onStepChange={setFinanceOnboardingStep}
-                  onComplete={completeFinanceOnboarding}
-                />
-              ) : (
-                <article className="dashboard-placeholder-card dashboard-placeholder-card-premium">
-                  <div className="dashboard-placeholder-meta">
-                    <span className="dashboard-placeholder-badge">{active.badge}</span>
-                    <span className="dashboard-placeholder-subsection">{activeSubsection.label}</span>
-                  </div>
-                  <h3>{active.title}</h3>
-                  <p>{active.note}</p>
-                  {section === "settings" ? (
-                    <div className="settings-actions">
-                      <button
-                        className="dashboard-logout settings-logout"
-                        type="button"
-                        onClick={onLogout}
-                      >
-                        {lang === "ru" ? "Выйти из аккаунта" : "Sign out"}
-                      </button>
-                    </div>
-                  ) : null}
-                </article>
-              )}
-            </div>
+          <div className="dashboard-content-stage">
+            {section === "finance" ? (
+              <FinancePanel
+                lang={lang}
+                overview={financeOverview}
+                loading={financeLoading}
+                error={financeError}
+                financeTab={financeTab}
+                onTabChange={onSetFinanceTab}
+                onboarding={financeOnboarding}
+                onboardingStep={financeOnboardingStep}
+                onSetOnboarding={(patch) =>
+                  setFinanceOnboarding((current) => ({ ...current, ...patch }))
+                }
+                onStepChange={setFinanceOnboardingStep}
+                onComplete={completeFinanceOnboarding}
+                onOverviewChange={setFinanceOverview}
+              />
+            ) : section === "settings" ? (
+              <SettingsPanel
+                lang={lang}
+                subsection={subsection}
+                user={user}
+                onSignedOut={() => navigate("/auth/login", { replace: true })}
+              />
+            ) : (
+              <article className="dashboard-placeholder-card dashboard-placeholder-card-premium">
+                <div className="dashboard-placeholder-meta">
+                  <span className="dashboard-placeholder-badge">{active.badge}</span>
+                  <span className="dashboard-placeholder-subsection">{activeSubsection.label}</span>
+                </div>
+                <h3>{active.title}</h3>
+                <p>{active.note}</p>
+              </article>
+            )}
           </div>
-        </section>
+        </div>
       </main>
 
       <nav className="dashboard-bottom-nav" aria-label="Mobile dashboard navigation">

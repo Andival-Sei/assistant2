@@ -8,21 +8,35 @@
         <ResourceDictionary>
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FFF2F0F4" />
-                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="PanelStrongBrush" Color="#FFF7F4F9" />
-                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FFFAF8FB" />
-                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FFF2F0F4" />
-                    <SolidColorBrush x:Key="InkBrush" Color="#FF1C1A20" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FF716B78" />
-                    <SolidColorBrush x:Key="AccentBrush" Color="#FF16C971" />
-                    <SolidColorBrush x:Key="Accent2Brush" Color="#FF10AE61" />
-                    <SolidColorBrush x:Key="StrokeBrush" Color="#94DDD9E2" />
-                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#101C1A20" />
-                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1E16C971" />
-                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF1C1A20" />
-                    <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FFFFFFFF" />
-                    <SolidColorBrush x:Key="ErrorTextBrush" Color="#FFB00020" />
+                    <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF171519" />
+                    <SolidColorBrush x:Key="CardBackgroundBrush" Color="#FF2A272D" />
+                    <SolidColorBrush x:Key="PanelStrongBrush" Color="#FF343039" />
+                    <SolidColorBrush x:Key="ShellBackgroundBrush" Color="#FF1D1A20" />
+                    <SolidColorBrush x:Key="StageBackgroundBrush" Color="#FF171519" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#FFF3F6F8" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#FFA5A0AB" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#FF23E08A" />
+                    <SolidColorBrush x:Key="Accent2Brush" Color="#FF17C96D" />
+                    <SolidColorBrush x:Key="StrokeBrush" Color="#7A3C3842" />
+                    <SolidColorBrush x:Key="InputBackgroundBrush" Color="#14FFFFFF" />
+                    <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1E23E08A" />
+                    <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF23E08A" />
+                    <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FF000000" />
+                    <SolidColorBrush x:Key="ErrorTextBrush" Color="#FFFF6B6B" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF403B44" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF4A4450" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF5A5460" />
+                    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FF33E799" />
+                    <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FF1DCF7A" />
+                    <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#FF24D784" />
+                    <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="HyperlinkButtonBorderBrushPointerOver" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#FF45404A" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FF4B4551" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FF64606D" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FF23E08A" />
+                    <SolidColorBrush x:Key="TextControlButtonBackgroundPointerOver" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlButtonBackgroundPressed" Color="#1EFFFFFF" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
                     <SolidColorBrush x:Key="PageBackgroundBrush" Color="#FF171519" />
@@ -37,10 +51,23 @@
                     <SolidColorBrush x:Key="StrokeBrush" Color="#7A3C3842" />
                     <SolidColorBrush x:Key="InputBackgroundBrush" Color="#14FFFFFF" />
                     <SolidColorBrush x:Key="PillBackgroundBrush" Color="#1E23E08A" />
-
                     <SolidColorBrush x:Key="PrimaryButtonBackgroundBrush" Color="#FF23E08A" />
                     <SolidColorBrush x:Key="PrimaryButtonForegroundBrush" Color="#FF000000" />
                     <SolidColorBrush x:Key="ErrorTextBrush" Color="#FFFF6B6B" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPointerOver" Color="#FF403B44" />
+                    <SolidColorBrush x:Key="ButtonBackgroundPressed" Color="#FF4A4450" />
+                    <SolidColorBrush x:Key="ButtonBorderBrushPointerOver" Color="#FF5A5460" />
+                    <SolidColorBrush x:Key="AccentButtonBackgroundPointerOver" Color="#FF33E799" />
+                    <SolidColorBrush x:Key="AccentButtonBackgroundPressed" Color="#FF1DCF7A" />
+                    <SolidColorBrush x:Key="AccentButtonBorderBrushPointerOver" Color="#FF24D784" />
+                    <SolidColorBrush x:Key="HyperlinkButtonBackgroundPointerOver" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="HyperlinkButtonBorderBrushPointerOver" Color="#00FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlBackgroundPointerOver" Color="#FF45404A" />
+                    <SolidColorBrush x:Key="TextControlBackgroundFocused" Color="#FF4B4551" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushPointerOver" Color="#FF64606D" />
+                    <SolidColorBrush x:Key="TextControlBorderBrushFocused" Color="#FF23E08A" />
+                    <SolidColorBrush x:Key="TextControlButtonBackgroundPointerOver" Color="#12FFFFFF" />
+                    <SolidColorBrush x:Key="TextControlButtonBackgroundPressed" Color="#1EFFFFFF" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
@@ -49,6 +76,53 @@
             </ResourceDictionary.MergedDictionaries>
 
             <ThemeShadow x:Key="CardThemeShadow" />
+
+            <Style x:Key="AuthModeButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Height" Value="40" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style x:Key="AuthModeButtonSelectedStyle" TargetType="Button" BasedOn="{StaticResource AccentButtonStyle}">
+                <Setter Property="Height" Value="40" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+            </Style>
+
+            <Style x:Key="AuthModeSwitchButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Height" Value="40" />
+                <Setter Property="Padding" Value="14,0" />
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+            </Style>
+
+            <Style x:Key="AuthSecondaryButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="16,0" />
+                <Setter Property="CornerRadius" Value="14" />
+            </Style>
+
+            <Style x:Key="ShellNavButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="14,10" />
+                <Setter Property="CornerRadius" Value="18" />
+                <Setter Property="HorizontalAlignment" Value="Stretch" />
+                <Setter Property="HorizontalContentAlignment" Value="Left" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderBrush" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
+
+            <Style x:Key="ShellCompactNavButtonStyle" TargetType="Button" BasedOn="{StaticResource DefaultButtonStyle}">
+                <Setter Property="Padding" Value="12,8" />
+                <Setter Property="CornerRadius" Value="16" />
+                <Setter Property="Background" Value="{ThemeResource CardBackgroundBrush}" />
+                <Setter Property="BorderBrush" Value="{ThemeResource StrokeBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+            </Style>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

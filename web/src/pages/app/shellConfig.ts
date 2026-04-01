@@ -39,7 +39,8 @@ function createSectionConfig(lang: Lang): Record<DashboardSection, DashboardSect
           { id: "overview", label: "Обзор" },
           { id: "accounts", label: "Счета" },
           { id: "transactions", label: "Транзакции" },
-          { id: "settings", label: "Настройки" },
+          { id: "categories", label: "Категории" },
+          { id: "analytics", label: "Аналитика" },
         ],
       },
       health: {
@@ -138,7 +139,8 @@ function createSectionConfig(lang: Lang): Record<DashboardSection, DashboardSect
         { id: "overview", label: "Overview" },
         { id: "accounts", label: "Accounts" },
         { id: "transactions", label: "Transactions" },
-        { id: "settings", label: "Settings" },
+        { id: "categories", label: "Categories" },
+        { id: "analytics", label: "Analytics" },
       ],
     },
     health: {
