@@ -459,11 +459,11 @@
                                                 <Button x:Name="SettingsPasswordButton" Click="SettingsPasswordButton_Click" Padding="14,0" Height="40" HorizontalAlignment="Left" CornerRadius="14" />
                                             </StackPanel>
 
-                                            <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
-                                                <Grid ColumnSpacing="12">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
+                                             <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
+                                                 <Grid ColumnSpacing="12">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="*" />
+                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="4">
                                                         <TextBlock x:Name="SettingsGoogleTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
@@ -483,15 +483,29 @@
                                                         <TextBlock x:Name="SettingsLogoutTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
                                                         <TextBlock x:Name="SettingsLogoutBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
                                                     </StackPanel>
-                                                    <Button x:Name="SettingsLogoutButton" Grid.Column="1" Click="LogoutButton_Click" Padding="14,0" Height="40" CornerRadius="14" VerticalAlignment="Center" />
-                                                </Grid>
-                                            </Border>
+                                                     <Button x:Name="SettingsLogoutButton" Grid.Column="1" Click="LogoutButton_Click" Padding="14,0" Height="40" CornerRadius="14" VerticalAlignment="Center" />
+                                                 </Grid>
+                                             </Border>
 
-                                            <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
-                                                <Grid ColumnSpacing="12">
-                                                    <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="*" />
-                                                        <ColumnDefinition Width="Auto" />
+                                             <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
+                                                 <Grid ColumnSpacing="12">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="*" />
+                                                         <ColumnDefinition Width="Auto" />
+                                                     </Grid.ColumnDefinitions>
+                                                     <StackPanel Spacing="4">
+                                                         <TextBlock x:Name="SettingsFinanceResetTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
+                                                         <TextBlock x:Name="SettingsFinanceResetBody" FontSize="13" TextWrapping="Wrap" Foreground="{ThemeResource MutedTextBrush}" />
+                                                     </StackPanel>
+                                                     <Button x:Name="SettingsFinanceResetButton" Grid.Column="1" Click="SettingsFinanceResetButton_Click" Padding="14,0" Height="40" CornerRadius="14" VerticalAlignment="Center" />
+                                                 </Grid>
+                                             </Border>
+
+                                             <Border Background="{ThemeResource PageBackgroundBrush}" BorderBrush="{ThemeResource StrokeBrush}" BorderThickness="1" CornerRadius="20" Padding="16">
+                                                 <Grid ColumnSpacing="12">
+                                                     <Grid.ColumnDefinitions>
+                                                         <ColumnDefinition Width="*" />
+                                                         <ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <StackPanel Spacing="4">
                                                         <TextBlock x:Name="SettingsDeleteTitle" FontSize="18" FontWeight="SemiBold" Foreground="{ThemeResource InkBrush}" />
@@ -561,6 +575,10 @@
                                             <StackPanel x:Name="FinanceOnboardingStepTwoPanel" Visibility="Collapsed" Spacing="10">
                                                 <TextBlock x:Name="FinanceBankLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
                                                 <ComboBox x:Name="FinanceBankCombo" />
+                                                <TextBlock x:Name="FinanceOnboardingCardTypeLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                <ComboBox x:Name="FinanceOnboardingCardTypeCombo" />
+                                                <TextBlock x:Name="FinanceOnboardingLastFourLabel" FontSize="13" Foreground="{ThemeResource MutedTextBrush}" />
+                                                <TextBox x:Name="FinanceOnboardingLastFourInput" MaxLength="4" />
                                                 <TextBox x:Name="FinancePrimaryBalanceInput" />
                                             </StackPanel>
 

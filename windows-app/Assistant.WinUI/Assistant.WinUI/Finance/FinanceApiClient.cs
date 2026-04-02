@@ -42,6 +42,8 @@ namespace Assistant.WinUI.Finance
             string accessToken,
             string? currency,
             string? bank,
+            string? cardType,
+            string? lastFourDigits,
             long? cashMinor,
             long? primaryAccountBalanceMinor) =>
             PostAsync(
@@ -51,6 +53,8 @@ namespace Assistant.WinUI.Finance
                 {
                     p_currency = currency,
                     p_bank = bank,
+                    p_card_type = cardType,
+                    p_last_four_digits = lastFourDigits,
                     p_cash_minor = cashMinor,
                     p_primary_account_balance_minor = primaryAccountBalanceMinor
                 });
@@ -64,6 +68,12 @@ namespace Assistant.WinUI.Finance
         public Task<List<FinanceCategory>> GetCategoriesAsync(string accessToken) =>
             PostAsync<List<FinanceCategory>>(
                 "finance_get_categories",
+                accessToken,
+                new { });
+
+        public Task ResetAllAsync(string accessToken) =>
+            PostAsync<object>(
+                "finance_reset_all",
                 accessToken,
                 new { });
 
@@ -106,35 +116,10 @@ namespace Assistant.WinUI.Finance
                     p_credit_grace_period_end_date = creditGracePeriodEndDate?.Date
                 });
 
-        public Task<FinanceOverview> CreateTransactionAsync(
+        public Task<FinanceOverview> CreateTransactionsAsync(
             string accessToken,
-            Guid accountId,
-            string direction,
-            string? title,
-            string? note,
-            long? amountMinor,
-            string? currency,
-            DateTimeOffset? happenedAt,
-            Guid? categoryId,
-            IReadOnlyList<FinanceTransactionItemDraft> items,
-            Guid? destinationAccountId,
-            string sourceType,
-            string? receiptStoragePath,
-            string? merchantName) =>
-            CreateTransactionInternalAsync(
-                accessToken,
-                accountId,
-                direction,
-                title,
-                note,
-                amountMinor,
-                currency,
-                happenedAt,
-                categoryId,
-                items,
-                destinationAccountId,
-                sourceType,
-                merchantName);
+            IReadOnlyList<FinanceCreateTransactionRequest> transactions) =>
+            CreateTransactionsInternalAsync(accessToken, transactions);
 
         public async Task<FinanceImportResult> ProcessReceiptImportAsync(
             string accessToken,
@@ -188,44 +173,16 @@ namespace Assistant.WinUI.Finance
             };
         }
 
-        private async Task<FinanceOverview> CreateTransactionInternalAsync(
+        private async Task<FinanceOverview> CreateTransactionsInternalAsync(
             string accessToken,
-            Guid accountId,
-            string direction,
-            string? title,
-            string? note,
-            long? amountMinor,
-            string? currency,
-            DateTimeOffset? happenedAt,
-            Guid? categoryId,
-            IReadOnlyList<FinanceTransactionItemDraft> items,
-            Guid? destinationAccountId,
-            string sourceType,
-            string? merchantName)
+            IReadOnlyList<FinanceCreateTransactionRequest> transactions)
         {
             await PostAsync<object>(
                 "finance_create_transactions",
                 accessToken,
                 new
                 {
-                    p_transactions = new[]
-                    {
-                        new
-                        {
-                            accountId,
-                            direction,
-                            title,
-                            note,
-                            amountMinor,
-                            currency,
-                            happenedAt = happenedAt?.UtcDateTime,
-                            categoryId,
-                            items,
-                            destinationAccountId,
-                            sourceType,
-                            merchantName
-                        }
-                    }
+                    p_transactions = transactions
                 });
 
             return await GetOverviewAsync(accessToken);

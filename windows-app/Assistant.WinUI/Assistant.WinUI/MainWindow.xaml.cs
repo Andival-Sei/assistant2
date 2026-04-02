@@ -5,6 +5,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Threading;
@@ -39,6 +40,17 @@ namespace Assistant.WinUI
 {
     public sealed partial class MainWindow : Window
     {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+
+        private const int SwRestore = 9;
+        private const int SwShow = 5;
+
         private sealed class OverviewCardOption : INotifyPropertyChanged
         {
             private bool _isSelected;
@@ -161,20 +173,6 @@ namespace Assistant.WinUI
             public List<TransactionDraftItemState> Items { get; set; } = new() { new TransactionDraftItemState() };
         }
 
-        private sealed record FinanceCreatePayload(
-            string AccountId,
-            string Direction,
-            string? Title,
-            string? Note,
-            long? AmountMinor,
-            string Currency,
-            string HappenedAt,
-            string? CategoryId,
-            List<FinanceTransactionItemDraft> Items,
-            string? DestinationAccountId,
-            string SourceType,
-            string? MerchantName);
-
         private sealed record FinanceImportIssue(
             string Error,
             List<string> Warnings);
@@ -220,6 +218,7 @@ namespace Assistant.WinUI
         private readonly SettingsApiClient? _settingsClient;
         private readonly SecureSessionStore _sessionStore = new();
         private readonly SecureGeminiSettingsStore _geminiSettingsStore = new();
+        private readonly DisplayNameStore _displayNameStore = new();
         private AuthSession? _session;
         private SettingsSnapshot? _settingsSnapshot;
         private bool _settingsLoading;
@@ -276,6 +275,7 @@ namespace Assistant.WinUI
             ApplyTheme();
             ApplyWindowChrome();
             ApplyWindowIcon();
+            MaximizeWindowOnStartup();
             ApplyMode();
             LoadSession();
             SizeChanged += MainWindow_SizeChanged;
@@ -303,6 +303,14 @@ namespace Assistant.WinUI
             }
 
             AppWindow.SetIcon(iconPath);
+        }
+
+        private void MaximizeWindowOnStartup()
+        {
+            if (AppWindow?.Presenter is OverlappedPresenter presenter)
+            {
+                presenter.Maximize();
+            }
         }
 
         public async Task HandleProtocolActivationAsync(Uri uri)
@@ -444,6 +452,7 @@ namespace Assistant.WinUI
         private async void SettingsGeminiButton_Click(object sender, RoutedEventArgs e) => await SaveGeminiApiKeyAsync();
         private async void SettingsPasswordButton_Click(object sender, RoutedEventArgs e) => await SavePasswordAsync();
         private async void SettingsGoogleButton_Click(object sender, RoutedEventArgs e) => await ToggleGoogleIdentityAsync();
+        private async void SettingsFinanceResetButton_Click(object sender, RoutedEventArgs e) => await ConfirmFinanceResetAsync();
         private async void SettingsDeleteButton_Click(object sender, RoutedEventArgs e) => await ConfirmDeleteAccountAsync();
 
         private void ForgotButton_Click(object sender, RoutedEventArgs e)
@@ -561,13 +570,17 @@ namespace Assistant.WinUI
                 var verifier = PkceUtil.CreateCodeVerifier();
                 var challenge = PkceUtil.CreateCodeChallenge(verifier);
                 PkceStore.Save(verifier);
-                using var listener = new LoopbackOAuthListener(AppConfig.GoogleLoopbackRedirectUri);
+                using var listener = new LoopbackOAuthListener(
+                    AppConfig.GoogleLoopbackRedirectUri,
+                    _isRussian,
+                    "assistant://auth/return?source=google-auth");
                 var url = _authClient.BuildGoogleAuthorizeUrl(
                     AppConfig.GoogleLoopbackRedirectUri,
                     challenge,
                     forceAccountSelection: true);
                 await Launcher.LaunchUriAsync(new Uri(url));
                 var callbackUri = await listener.WaitForCallbackAsync(TimeSpan.FromMinutes(2));
+                BringWindowToFront();
                 await HandleProtocolActivationAsync(callbackUri);
             }
             catch (Exception ex)
@@ -711,7 +724,10 @@ namespace Assistant.WinUI
             FinanceOnboardingBadge.Text = _isRussian ? "ОНБОРДИНГ" : "ONBOARDING";
             FinanceCurrencyLabel.Text = _isRussian ? "Основная валюта" : "Primary currency";
             FinanceBankLabel.Text = _isRussian ? "Банк основной карты" : "Primary card bank";
+            FinanceOnboardingCardTypeLabel.Text = _isRussian ? "Тип основной карты" : "Primary card type";
+            FinanceOnboardingLastFourLabel.Text = _isRussian ? "Последние 4 цифры" : "Last 4 digits";
             FinanceCashLabel.Text = _isRussian ? "Наличные" : "Cash";
+            FinanceOnboardingLastFourInput.PlaceholderText = _isRussian ? "1234" : "1234";
             FinancePrimaryBalanceInput.PlaceholderText = _isRussian ? "Баланс основной карты" : "Primary card balance";
             FinanceCashInput.PlaceholderText = _isRussian ? "Сумма наличных" : "Cash amount";
             FinanceBackButton.Content = _isRussian ? "Назад" : "Back";
@@ -782,6 +798,11 @@ namespace Assistant.WinUI
                 ? "Текущая сессия будет завершена на этом устройстве."
                 : "The current session will be closed on this device.";
             SettingsLogoutButton.Content = _isRussian ? "Выйти из аккаунта" : "Sign out";
+            SettingsFinanceResetTitle.Text = _isRussian ? "Сброс финансов" : "Reset finance";
+            SettingsFinanceResetBody.Text = _isRussian
+                ? "Удалит все счета, транзакции, категории и настройки обзора. После этого раздел финансов откроется заново с начальной настройки."
+                : "Removes all accounts, transactions, categories, and overview settings. The finance workspace will start from onboarding again.";
+            SettingsFinanceResetButton.Content = _isRussian ? "Сбросить финансы" : "Reset finance";
             SettingsDeleteTitle.Text = _isRussian ? "Удаление аккаунта" : "Delete account";
             SettingsDeleteBody.Text = _isRussian
                 ? "Действие необратимо. Все пользовательские данные и сессии будут удалены."
@@ -1204,9 +1225,11 @@ namespace Assistant.WinUI
         {
             var currentCurrency = FinanceCurrencyCombo.SelectedItem as ComboBoxItem;
             var currentBank = FinanceBankCombo.SelectedItem as ComboBoxItem;
+            var currentCardType = FinanceOnboardingCardTypeCombo.SelectedItem as ComboBoxItem;
 
             FinanceCurrencyCombo.Items.Clear();
             FinanceBankCombo.Items.Clear();
+            FinanceOnboardingCardTypeCombo.Items.Clear();
 
             AddComboItem(FinanceCurrencyCombo, "RUB", _isRussian ? "Рубли" : "Rubles");
             AddComboItem(FinanceCurrencyCombo, "USD", _isRussian ? "Доллары" : "US Dollars");
@@ -1217,9 +1240,12 @@ namespace Assistant.WinUI
             AddComboItem(FinanceBankCombo, "Сбер", "Сбер");
             AddComboItem(FinanceBankCombo, "Альфа", "Альфа");
             AddComboItem(FinanceBankCombo, "ВТБ", "ВТБ");
+            AddComboItem(FinanceOnboardingCardTypeCombo, "debit", _isRussian ? "Дебетовая" : "Debit");
+            AddComboItem(FinanceOnboardingCardTypeCombo, "credit", _isRussian ? "Кредитная" : "Credit");
 
             SelectComboItemByTag(FinanceCurrencyCombo, currentCurrency?.Tag as string ?? _financeOverview?.DefaultCurrency ?? "RUB");
             SelectComboItemByTag(FinanceBankCombo, currentBank?.Tag as string ?? string.Empty);
+            SelectComboItemByTag(FinanceOnboardingCardTypeCombo, currentCardType?.Tag as string ?? "debit");
         }
 
         private static void AddComboItem(ComboBox comboBox, string tag, string text)
@@ -1258,13 +1284,13 @@ namespace Assistant.WinUI
                 ? stepNumber switch
                 {
                     1 => "Выберите основную валюту. Это базовая точка для сводки.",
-                    2 => "Если хотите, задайте банк основной карты и стартовый баланс.",
+                    2 => "Если хотите, задайте банк, тип карты, последние 4 цифры и стартовый баланс.",
                     _ => "Укажите наличные или пропустите этот шаг."
                 }
                 : stepNumber switch
                 {
                     1 => "Choose the main currency for your finance summary.",
-                    2 => "Optionally set the primary card bank and opening balance.",
+                    2 => "Optionally set the primary bank, card type, last 4 digits, and opening balance.",
                     _ => "Add your cash balance or skip this step."
                 };
             FinanceOnboardingBadge.Text = _isRussian
@@ -1350,17 +1376,40 @@ namespace Assistant.WinUI
             {
                 var currency = skip ? null : (FinanceCurrencyCombo.SelectedItem as ComboBoxItem)?.Tag as string;
                 var bank = skip ? null : (FinanceBankCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+                var primaryBalanceMinor = skip ? null : ParseMinor(FinancePrimaryBalanceInput.Text);
+                var hasPrimaryCardDraft = !skip &&
+                    (!string.IsNullOrWhiteSpace(FinanceOnboardingLastFourInput.Text) || (primaryBalanceMinor ?? 0) > 0);
                 if (string.IsNullOrWhiteSpace(bank))
                 {
                     bank = null;
+                }
+                if (hasPrimaryCardDraft && bank == null)
+                {
+                    throw new InvalidOperationException(_isRussian
+                        ? "Выберите банк основной карты или очистите данные карты."
+                        : "Choose the primary card bank or clear the card details.");
+                }
+                var cardType = skip || bank == null
+                    ? null
+                    : (FinanceOnboardingCardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+                var lastFourDigits = skip || bank == null
+                    ? null
+                    : NormalizeLastFourDigits(FinanceOnboardingLastFourInput.Text);
+                if (!skip && bank != null && lastFourDigits == null)
+                {
+                    throw new InvalidOperationException(_isRussian
+                        ? "Введите последние 4 цифры основной карты."
+                        : "Enter the last 4 digits of the primary card.");
                 }
 
                 _financeOverview = await _financeClient.CompleteOnboardingAsync(
                     _session.AccessToken,
                     currency,
                     bank,
+                    cardType,
+                    lastFourDigits,
                     skip ? null : ParseMinor(FinanceCashInput.Text),
-                    skip ? null : ParseMinor(FinancePrimaryBalanceInput.Text));
+                    primaryBalanceMinor);
                 _financeOnboardingStep = 0;
             }
             catch (Exception ex)
@@ -2865,12 +2914,15 @@ namespace Assistant.WinUI
                 _financeOverview = await _financeClient.UpdateOverviewCardsAsync(_session.AccessToken, cards);
                 RenderFinanceContent();
                 AnimateFinanceOverviewRefresh();
+                SetStatus(_isRussian ? "Настройки обзора сохранены." : "Overview settings saved.", false);
             }
             catch (Exception ex)
             {
                 if (!HandleFinanceSessionError(ex))
                 {
-                    FinanceSettingsText.Text = ex.Message;
+                    FinanceSettingsText.Text = LocalizeFinanceRequestError(
+                        ex.Message,
+                        _isRussian ? "Не удалось сохранить настройки обзора." : "Failed to save overview settings.");
                 }
             }
         }
@@ -3227,89 +3279,113 @@ namespace Assistant.WinUI
                 Content = content
             };
 
-            if (await dialog.ShowAsync() != ContentDialogResult.Primary)
+            dialog.PrimaryButtonClick += async (_, args) =>
             {
-                return;
-            }
-
-            var providerCodeToSave = (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "tbank";
-            var isCash = string.Equals(providerCodeToSave, "cash", StringComparison.OrdinalIgnoreCase);
-            var cardType = isCash ? null : (cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "debit";
-            var isCredit = !isCash && string.Equals(cardType, "credit", StringComparison.OrdinalIgnoreCase);
-            var lastFourDigits = isCash ? null : NormalizeLastFourDigits(lastFourInput.Text);
-            if (!isCash && lastFourDigits == null)
-            {
-                await ShowFinanceMessageDialogAsync(
-                    _isRussian ? "Ошибка" : "Error",
-                    _isRussian ? "Укажите последние 4 цифры карты." : "Enter the last 4 card digits.");
-                return;
-            }
-
-            long? balanceMinor = null;
-            long? creditLimitMinor = null;
-            long? creditDebtMinor = null;
-            long? creditRequiredPaymentMinor = null;
-            DateTimeOffset? creditPaymentDueDate = null;
-            DateTimeOffset? creditGracePeriodEndDate = null;
-
-            if (isCredit)
-            {
-                creditLimitMinor = ParseMoneyInputToMinor(creditLimitInput.Text);
-                creditDebtMinor = ParseMoneyInputToMinor(creditDebtInput.Text);
-                if (creditLimitMinor is null || creditLimitMinor <= 0 || creditDebtMinor is null)
+                args.Cancel = true;
+                var deferral = args.GetDeferral();
+                dialog.IsPrimaryButtonEnabled = false;
+                dialog.IsSecondaryButtonEnabled = false;
+                try
                 {
-                    await ShowFinanceMessageDialogAsync(
-                        _isRussian ? "Ошибка" : "Error",
-                        _isRussian
-                            ? "Укажите корректные кредитный лимит и текущий долг."
-                            : "Enter valid credit limit and current debt.");
-                    return;
-                }
-
-                if (!string.IsNullOrWhiteSpace(creditRequiredPaymentInput.Text))
-                {
-                    creditRequiredPaymentMinor = ParseMoneyInputToMinor(creditRequiredPaymentInput.Text);
-                    if (creditRequiredPaymentMinor is null)
+                    var providerCodeToSave = (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "tbank";
+                    var isCash = string.Equals(providerCodeToSave, "cash", StringComparison.OrdinalIgnoreCase);
+                    var cardType = isCash ? null : (cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "debit";
+                    var isCredit = !isCash && string.Equals(cardType, "credit", StringComparison.OrdinalIgnoreCase);
+                    var lastFourDigits = isCash ? null : NormalizeLastFourDigits(lastFourInput.Text);
+                    if (!isCash && lastFourDigits == null)
                     {
-                        await ShowFinanceMessageDialogAsync(
-                            _isRussian ? "Ошибка" : "Error",
-                            _isRussian
-                                ? "Введите корректный минимальный платёж."
-                                : "Enter a valid required payment.");
+                        noteText.Text = _isRussian ? "Укажите последние 4 цифры карты." : "Enter the last 4 card digits.";
                         return;
                     }
-                }
 
-                creditPaymentDueDate = creditPaymentDueCheck.IsChecked == true ? creditPaymentDuePicker.Date : null;
-                creditGracePeriodEndDate = creditGracePeriodCheck.IsChecked == true ? creditGracePeriodPicker.Date : null;
-            }
-            else
-            {
-                balanceMinor = ParseMoneyInputToMinor(amountInput.Text);
-                if (balanceMinor == null)
+                    long? balanceMinor = null;
+                    long? creditLimitMinor = null;
+                    long? creditDebtMinor = null;
+                    long? creditRequiredPaymentMinor = null;
+                    DateTimeOffset? creditPaymentDueDate = null;
+                    DateTimeOffset? creditGracePeriodEndDate = null;
+
+                    if (isCredit)
+                    {
+                        creditLimitMinor = ParseMoneyInputToMinor(creditLimitInput.Text);
+                        creditDebtMinor = ParseMoneyInputToMinor(creditDebtInput.Text);
+                        if (creditLimitMinor is null || creditLimitMinor <= 0 || creditDebtMinor is null)
+                        {
+                            noteText.Text = _isRussian
+                                ? "Укажите корректные кредитный лимит и текущий долг."
+                                : "Enter valid credit limit and current debt.";
+                            return;
+                        }
+
+                        if (!string.IsNullOrWhiteSpace(creditRequiredPaymentInput.Text))
+                        {
+                            creditRequiredPaymentMinor = ParseMoneyInputToMinor(creditRequiredPaymentInput.Text);
+                            if (creditRequiredPaymentMinor is null)
+                            {
+                                noteText.Text = _isRussian
+                                    ? "Введите корректный минимальный платёж."
+                                    : "Enter a valid required payment.";
+                                return;
+                            }
+                        }
+
+                        creditPaymentDueDate = creditPaymentDueCheck.IsChecked == true ? creditPaymentDuePicker.Date : null;
+                        creditGracePeriodEndDate = creditGracePeriodCheck.IsChecked == true ? creditGracePeriodPicker.Date : null;
+                    }
+                    else
+                    {
+                        balanceMinor = ParseMoneyInputToMinor(amountInput.Text);
+                        if (balanceMinor == null)
+                        {
+                            noteText.Text = _isRussian ? "Введите корректную сумму." : "Enter a valid amount.";
+                            return;
+                        }
+                    }
+
+                    var accessToken = await GetFreshFinanceAccessTokenAsync();
+                    _financeOverview = await _financeClient.UpsertAccountAsync(
+                        accessToken,
+                        account?.Id,
+                        providerCodeToSave,
+                        cardType,
+                        lastFourDigits,
+                        balanceMinor ?? 0,
+                        _financeOverview.DefaultCurrency ?? "RUB",
+                        !isCash && primaryCheck.IsChecked == true,
+                        creditLimitMinor,
+                        creditDebtMinor,
+                        creditRequiredPaymentMinor,
+                        creditPaymentDueDate,
+                        creditGracePeriodEndDate);
+                    _financeAnalytics = null;
+                    RenderFinanceContent();
+                    SetStatus(account == null
+                        ? (_isRussian ? "Счёт сохранён." : "Account saved.")
+                        : (_isRussian ? "Изменения по счёту сохранены." : "Account changes saved."),
+                        false);
+                    args.Cancel = false;
+                }
+                catch (Exception ex)
                 {
-                    await ShowFinanceMessageDialogAsync(_isRussian ? "Ошибка" : "Error", _isRussian ? "Введите корректную сумму." : "Enter a valid amount.");
-                    return;
-                }
-            }
+                    if (HandleFinanceSessionError(ex))
+                    {
+                        args.Cancel = false;
+                        return;
+                    }
 
-            var accessToken = await GetFreshFinanceAccessTokenAsync();
-            _financeOverview = await _financeClient.UpsertAccountAsync(
-                accessToken,
-                account?.Id,
-                providerCodeToSave,
-                cardType,
-                lastFourDigits,
-                balanceMinor ?? 0,
-                _financeOverview.DefaultCurrency ?? "RUB",
-                !isCash && primaryCheck.IsChecked == true,
-                creditLimitMinor,
-                creditDebtMinor,
-                creditRequiredPaymentMinor,
-                creditPaymentDueDate,
-                creditGracePeriodEndDate);
-            _financeAnalytics = null;
-            RenderFinanceContent();
+                    noteText.Text = LocalizeFinanceRequestError(
+                        ex.Message,
+                        _isRussian ? "Не удалось сохранить счёт." : "Failed to save the account.");
+                }
+                finally
+                {
+                    dialog.IsPrimaryButtonEnabled = true;
+                    dialog.IsSecondaryButtonEnabled = true;
+                    deferral.Complete();
+                }
+            };
+
+            await dialog.ShowAsync();
         }
 
         private async Task ShowFinanceMessageDialogAsync(string title, string body)
@@ -4198,6 +4274,88 @@ namespace Assistant.WinUI
         {
             var message = ExtractJsonErrorMessage(ex.Message);
             return LocalizeFinanceImportIssue(message, _isRussian ? "документе" : "document");
+        }
+
+        private string LocalizeFinanceRequestError(string? raw, string fallback)
+        {
+            var message = ExtractJsonErrorMessage(raw);
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return fallback;
+            }
+
+            var normalized = message.ToLowerInvariant();
+            if (normalized.Contains("insufficient available funds"))
+            {
+                return _isRussian
+                    ? "На счёте меньше средств, чем указано в операции. Проверьте сумму или выберите другой счёт."
+                    : "There are not enough funds on the account for this operation.";
+            }
+
+            if (normalized.Contains("account type and card identity cannot be changed after first transaction"))
+            {
+                return _isRussian
+                    ? "После первой транзакции нельзя менять банк, тип карты или последние 4 цифры."
+                    : "Bank, card type, and last 4 digits cannot be changed after the first transaction.";
+            }
+
+            if (normalized.Contains("balance cannot be changed after first transaction"))
+            {
+                return _isRussian
+                    ? "После первой транзакции нельзя менять стартовый баланс счёта."
+                    : "The opening balance cannot be changed after the first transaction.";
+            }
+
+            if (normalized.Contains("primary card bank is required"))
+            {
+                return _isRussian
+                    ? "Выберите банк основной карты или очистите данные карты."
+                    : "Choose the primary card bank or clear the card details.";
+            }
+
+            if (normalized.Contains("last four digits are required"))
+            {
+                return _isRussian
+                    ? "Укажите последние 4 цифры карты."
+                    : "Enter the last 4 digits of the card.";
+            }
+
+            if (normalized.Contains("unsupported currency"))
+            {
+                return _isRussian
+                    ? "Эта валюта сейчас не поддерживается в финансах."
+                    : "This currency is not supported in Finance.";
+            }
+
+            if (normalized.Contains("account not found") || normalized.Contains("source account not found"))
+            {
+                return _isRussian
+                    ? "Счёт не найден. Обновите раздел финансов и попробуйте снова."
+                    : "The account was not found. Refresh Finance and try again.";
+            }
+
+            if (normalized.Contains("destination account not found"))
+            {
+                return _isRussian
+                    ? "Счёт назначения не найден. Обновите раздел финансов и попробуйте снова."
+                    : "The destination account was not found. Refresh Finance and try again.";
+            }
+
+            if (normalized.Contains("client request id is required"))
+            {
+                return _isRussian
+                    ? "Не удалось подготовить операцию к сохранению. Повторите попытку."
+                    : "The operation could not be prepared for saving. Try again.";
+            }
+
+            if (normalized.Contains("overview cards list contains unsupported items"))
+            {
+                return _isRussian
+                    ? "Сохранить настройки обзора не удалось. Обновите раздел финансов и попробуйте снова."
+                    : "Overview settings could not be saved. Refresh Finance and try again.";
+            }
+
+            return fallback;
         }
 
         private async Task<string> EnsureLocalImportPathAsync(StorageFile file)
@@ -5609,34 +5767,30 @@ namespace Assistant.WinUI
                 {
                     var financeClient = _financeClient!;
                     var accessToken = await GetFreshFinanceAccessTokenAsync();
+                    var createRequests = new List<FinanceCreateTransactionRequest>();
 
                     foreach (var draft in drafts)
                     {
                         SyncCurrentDraft(draft);
-                        var payload = ToCreatePayload(draft);
-                        await financeClient.CreateTransactionAsync(
-                            accessToken,
-                            Guid.Parse(payload.AccountId),
-                            payload.Direction,
-                            payload.Title,
-                            payload.Note,
-                            payload.AmountMinor,
-                            payload.Currency,
-                            ParseFinanceDateTime(payload.HappenedAt),
-                            payload.CategoryId != null ? Guid.Parse(payload.CategoryId) : null,
-                            payload.Items,
-                            payload.DestinationAccountId != null ? Guid.Parse(payload.DestinationAccountId) : null,
-                            payload.SourceType,
-                            null,
-                            payload.MerchantName);
+                        createRequests.Add(ToCreatePayload(draft));
                     }
 
+                    if (!TryValidateFinanceDraftBalances(createRequests, out var balanceError))
+                    {
+                        stateText.Text = balanceError;
+                        return;
+                    }
+
+                    _financeOverview = await financeClient.CreateTransactionsAsync(accessToken, createRequests);
+                    _financeAnalytics = null;
                     saved = true;
                     dialog.Hide();
                 }
                 catch (Exception ex)
                 {
-                    stateText.Text = ex.Message;
+                    stateText.Text = LocalizeFinanceRequestError(
+                        ex.Message,
+                        _isRussian ? "Не удалось сохранить транзакции." : "Failed to save transactions.");
                 }
                 finally
                 {
@@ -5828,7 +5982,7 @@ namespace Assistant.WinUI
                 };
             }
 
-            FinanceCreatePayload ToCreatePayload(TransactionDraftState draft)
+            FinanceCreateTransactionRequest ToCreatePayload(TransactionDraftState draft)
             {
                 var items = draft.Direction == "transfer"
                     ? new List<FinanceTransactionItemDraft>()
@@ -5841,33 +5995,26 @@ namespace Assistant.WinUI
                     ? ParseMoneyInputToMinor(draft.TransferAmount)
                     : items.Sum(item => item.AmountMinor);
 
-                var singleCategoryId = draft.Direction != "transfer" && items.Count == 1 && items[0].CategoryId != null
-                    ? items[0].CategoryId.ToString()
+                var singleCategoryId = draft.Direction != "transfer" && items.Count == 1
+                    ? items[0].CategoryId
                     : null;
 
-                return new FinanceCreatePayload(
-                    AccountId: draft.AccountId,
-                    Direction: draft.Direction,
-                    Title: string.IsNullOrWhiteSpace(draft.Title) ? null : draft.Title.Trim(),
-                    Note: string.IsNullOrWhiteSpace(draft.Note) ? null : draft.Note.Trim(),
-                    AmountMinor: amountMinor,
-                    Currency: string.IsNullOrWhiteSpace(draft.Currency) ? (_financeOverview?.DefaultCurrency ?? "RUB") : draft.Currency,
-                    HappenedAt: string.IsNullOrWhiteSpace(draft.HappenedAt) ? DateTimeOffset.Now.ToString("O") : draft.HappenedAt,
-                    CategoryId: singleCategoryId,
-                    Items: items,
-                    DestinationAccountId: string.IsNullOrWhiteSpace(draft.DestinationAccountId) ? null : draft.DestinationAccountId,
-                    SourceType: draft.SourceType,
-                    MerchantName: draft.Direction == "transfer" || string.IsNullOrWhiteSpace(draft.MerchantName) ? null : draft.MerchantName.Trim());
-            }
-
-            DateTimeOffset? ParseFinanceDateTime(string? rawValue)
-            {
-                if (DateTimeOffset.TryParse(rawValue, out var parsed))
+                return new FinanceCreateTransactionRequest
                 {
-                    return parsed;
-                }
-
-                return null;
+                    ClientRequestId = Guid.Parse(draft.Id),
+                    AccountId = Guid.Parse(draft.AccountId),
+                    Direction = draft.Direction,
+                    Title = string.IsNullOrWhiteSpace(draft.Title) ? null : draft.Title.Trim(),
+                    Note = string.IsNullOrWhiteSpace(draft.Note) ? null : draft.Note.Trim(),
+                    AmountMinor = amountMinor,
+                    Currency = string.IsNullOrWhiteSpace(draft.Currency) ? (_financeOverview?.DefaultCurrency ?? "RUB") : draft.Currency,
+                    HappenedAt = DateTimeOffset.TryParse(draft.HappenedAt, out var parsed) ? parsed : DateTimeOffset.Now,
+                    CategoryId = singleCategoryId,
+                    Items = items,
+                    DestinationAccountId = Guid.TryParse(draft.DestinationAccountId, out var destinationAccountId) ? destinationAccountId : null,
+                    SourceType = draft.SourceType,
+                    MerchantName = draft.Direction == "transfer" || string.IsNullOrWhiteSpace(draft.MerchantName) ? null : draft.MerchantName.Trim()
+                };
             }
         }
 
@@ -5927,6 +6074,65 @@ namespace Assistant.WinUI
 
             return amount.ToString("0.##", CultureInfo.InvariantCulture).Replace('.', ',');
         }
+
+        private bool TryValidateFinanceDraftBalances(
+            IReadOnlyList<FinanceCreateTransactionRequest> requests,
+            out string errorMessage)
+        {
+            errorMessage = string.Empty;
+            if (_financeOverview == null)
+            {
+                return true;
+            }
+
+            var accounts = _financeOverview.Accounts.ToDictionary(item => item.Id, item => item);
+            var simulatedBalances = accounts.ToDictionary(item => item.Key, item => item.Value.BalanceMinor);
+
+            foreach (var request in requests)
+            {
+                if (!accounts.TryGetValue(request.AccountId, out var sourceAccount))
+                {
+                    continue;
+                }
+
+                if (IsProtectedOwnFundsAccount(sourceAccount))
+                {
+                    var amountMinor = request.AmountMinor ?? 0;
+                    if (string.Equals(request.Direction, "expense", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(request.Direction, "transfer", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (simulatedBalances[sourceAccount.Id] < amountMinor)
+                        {
+                            errorMessage = _isRussian
+                                ? "На счёте меньше средств, чем указано в операции. Проверьте сумму или выберите другой счёт."
+                                : "There are not enough funds on the account for this operation.";
+                            return false;
+                        }
+
+                        simulatedBalances[sourceAccount.Id] -= amountMinor;
+                    }
+                    else if (string.Equals(request.Direction, "income", StringComparison.OrdinalIgnoreCase))
+                    {
+                        simulatedBalances[sourceAccount.Id] += amountMinor;
+                    }
+                }
+
+                if (string.Equals(request.Direction, "transfer", StringComparison.OrdinalIgnoreCase) &&
+                    request.DestinationAccountId.HasValue &&
+                    accounts.TryGetValue(request.DestinationAccountId.Value, out var destinationAccount) &&
+                    IsProtectedOwnFundsAccount(destinationAccount))
+                {
+                    simulatedBalances[destinationAccount.Id] += request.AmountMinor ?? 0;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool IsProtectedOwnFundsAccount(FinanceAccount account) =>
+            string.Equals(account.Kind, "cash", StringComparison.OrdinalIgnoreCase) ||
+            (string.Equals(account.Kind, "bank_card", StringComparison.OrdinalIgnoreCase) &&
+             !string.Equals(account.CardType, "credit", StringComparison.OrdinalIgnoreCase));
 
         private long GetOverviewCardMetric(FinanceOverview overview, string cardId) => cardId switch
         {
@@ -6591,7 +6797,7 @@ namespace Assistant.WinUI
                 string.Equals(identity.Provider, "google", StringComparison.OrdinalIgnoreCase)) == true;
             SettingsGoogleBody.Text = hasGoogle
                 ? (_isRussian ? "Google уже привязан к вашему аккаунту." : "Google is already linked to your account.")
-                : (_isRussian ? "Привяжите Google, чтобы входить в один клик." : "Link Google for one-click sign-in.");
+                : (_isRussian ? "Подключите Google к текущему аккаунту." : "Connect Google to the current account.");
 
             var googleBusy = _settingsBusyAction is "google_link" or "google_unlink";
             SettingsGoogleButton.Content = googleBusy
@@ -6621,6 +6827,7 @@ namespace Assistant.WinUI
             SettingsPasswordButton.IsEnabled = !busy;
             SettingsGoogleButton.IsEnabled = !busy;
             SettingsLogoutButton.IsEnabled = !busy;
+            SettingsFinanceResetButton.IsEnabled = !busy;
             SettingsDeleteButton.IsEnabled = !busy;
         }
 
@@ -6642,7 +6849,7 @@ namespace Assistant.WinUI
             SettingsGeminiClearButton.Visibility = hasSavedGeminiKey ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void SetSettingsBanner(string? message, bool isError)
+        private void SetSettingsBanner(string? message, bool isError, bool persist = false)
         {
             _settingsBanner = message;
             _settingsBannerIsError = isError;
@@ -6652,12 +6859,13 @@ namespace Assistant.WinUI
                 message,
                 isError,
                 false,
+                persist,
                 _isRussian
                     ? (_settingsBannerIsError ? "Проблема с настройками" : "Настройки обновлены")
                     : (_settingsBannerIsError ? "Settings issue" : "Settings updated"));
         }
 
-        private async Task LoadSettingsAsync()
+        private async Task LoadSettingsAsync(bool clearBanner = true)
         {
             if (_settingsClient == null || !HasSession() || _session == null || _section != DashboardSection.Settings)
             {
@@ -6676,7 +6884,10 @@ namespace Assistant.WinUI
             try
             {
                 _settingsLoading = true;
-                SetSettingsBanner(null, false);
+                if (clearBanner)
+                {
+                    SetSettingsBanner(null, false);
+                }
                 RenderSettingsContent();
                 var accessToken = await GetFreshAccessTokenAsync();
 
@@ -6685,6 +6896,16 @@ namespace Assistant.WinUI
                     userId,
                     ExtractEmail());
 
+                var cachedDisplayName = _displayNameStore.Load(userId);
+                if (string.IsNullOrWhiteSpace(snapshot.DisplayName) && !string.IsNullOrWhiteSpace(_settingsSnapshot?.DisplayName))
+                {
+                    snapshot.DisplayName = _settingsSnapshot.DisplayName;
+                }
+                if (string.IsNullOrWhiteSpace(snapshot.DisplayName) && !string.IsNullOrWhiteSpace(cachedDisplayName))
+                {
+                    snapshot.DisplayName = cachedDisplayName;
+                }
+
                 var cachedGeminiSettings = _geminiSettingsStore.Load(userId);
                 if (!snapshot.HasGeminiApiKey && cachedGeminiSettings is { } cached && !string.IsNullOrWhiteSpace(cached.GeminiApiKey))
                 {
@@ -6692,15 +6913,22 @@ namespace Assistant.WinUI
                     snapshot.AiEnhancementsEnabled = cached.AiEnhancementsEnabled;
                 }
 
+                snapshot.Identities = BuildLinkedIdentityFallbacksFromSession();
                 try
                 {
-                    snapshot.Identities = await _authClient.GetUserIdentitiesAsync(accessToken);
+                    snapshot.Identities = await LoadLinkedIdentitiesAsync();
                 }
                 catch
                 {
-                    snapshot.Identities = new List<LinkedIdentity>();
+                    // Keep the fallback provider list from the current session so the UI remains stable
+                    // even when the identities RPC is temporarily unavailable.
                 }
+
                 _settingsSnapshot = snapshot;
+                if (!string.IsNullOrWhiteSpace(_settingsSnapshot.DisplayName))
+                {
+                    _displayNameStore.Save(userId, _settingsSnapshot.DisplayName);
+                }
                 if (_settingsSnapshot.HasGeminiApiKey)
                 {
                     _geminiSettingsStore.Save(_settingsSnapshot.UserId, _settingsSnapshot.GeminiApiKey, _settingsSnapshot.AiEnhancementsEnabled);
@@ -6715,9 +6943,14 @@ namespace Assistant.WinUI
                 SettingsPasswordConfirmInput.Password = string.Empty;
                 ApplySettingsGeminiPresentation();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
                 _settingsSnapshot = CreateFallbackSettingsSnapshot(userId);
+                var cachedDisplayName = _displayNameStore.Load(userId);
+                if (string.IsNullOrWhiteSpace(_settingsSnapshot.DisplayName) && !string.IsNullOrWhiteSpace(cachedDisplayName))
+                {
+                    _settingsSnapshot.DisplayName = cachedDisplayName;
+                }
                 var cachedGeminiSettings = _geminiSettingsStore.Load(userId);
                 if (cachedGeminiSettings is { } cached && !string.IsNullOrWhiteSpace(cached.GeminiApiKey))
                 {
@@ -6732,7 +6965,27 @@ namespace Assistant.WinUI
                 _suppressSettingsAiToggleSave = false;
                 SettingsPasswordInput.Password = string.Empty;
                 SettingsPasswordConfirmInput.Password = string.Empty;
-                SetSettingsBanner(null, false);
+                if (_settingsSnapshot.Identities.Count == 0)
+                {
+                    _settingsSnapshot.Identities = BuildLinkedIdentityFallbacksFromSession();
+                }
+                if (clearBanner)
+                {
+                    var hasVisibleData =
+                        !string.IsNullOrWhiteSpace(_settingsSnapshot.Email) ||
+                        !string.IsNullOrWhiteSpace(_settingsSnapshot.DisplayName) ||
+                        _settingsSnapshot.HasGeminiApiKey ||
+                        _settingsSnapshot.Identities.Count > 0;
+
+                    if (hasVisibleData)
+                    {
+                        SetSettingsBanner(null, false);
+                    }
+                    else
+                    {
+                        SetSettingsBanner(LocalizeSettingsLoadError(ex.Message), true);
+                    }
+                }
                 ApplySettingsGeminiPresentation();
             }
             finally
@@ -6777,8 +7030,11 @@ namespace Assistant.WinUI
                 var accessToken = await GetFreshAccessTokenAsync();
                 await _settingsClient.SaveDisplayNameAsync(accessToken, _settingsSnapshot.UserId, ExtractEmail(), nextName);
                 _settingsSnapshot.DisplayName = nextName;
+                _displayNameStore.Save(_settingsSnapshot.UserId, nextName);
                 SetSettingsBanner(_isRussian ? "Имя сохранено." : "Name saved.", false);
-                UpdateShellState();
+                DashboardWelcomeTitle.Text = _isRussian
+                    ? $"{SectionLabel(_section)}, {ExtractDisplayName()}."
+                    : $"{SectionLabel(_section)}, {ExtractDisplayName()}.";
             }
             catch (Exception ex)
             {
@@ -6999,7 +7255,7 @@ namespace Assistant.WinUI
 
         private async Task ToggleGoogleIdentityAsync()
         {
-            if (_session == null)
+            if (_session == null || _settingsClient == null)
             {
                 return;
             }
@@ -7010,20 +7266,73 @@ namespace Assistant.WinUI
             {
                 try
                 {
+                    var previousSession = CloneSession(_session);
+                    var previousUserId = ExtractUserId();
                     _settingsBusyAction = "google_link";
                     RenderSettingsContent();
-                    using var listener = new LoopbackOAuthListener(AppConfig.GoogleLoopbackRedirectUri);
-                    var url = await _authClient.GetIdentityLinkUrlAsync(_session.AccessToken, "google", AppConfig.GoogleLoopbackRedirectUri);
+                    var verifier = PkceUtil.CreateCodeVerifier();
+                    var challenge = PkceUtil.CreateCodeChallenge(verifier);
+                    PkceStore.Save(verifier);
+                    using var listener = new LoopbackOAuthListener(
+                        AppConfig.GoogleLoopbackRedirectUri,
+                        _isRussian,
+                        "assistant://auth/return?source=google-link");
+                    var url = _authClient.BuildGoogleAuthorizeUrl(
+                        AppConfig.GoogleLoopbackRedirectUri,
+                        challenge,
+                        forceAccountSelection: true);
                     await Launcher.LaunchUriAsync(new Uri(url));
                     var callbackUri = await listener.WaitForCallbackAsync(TimeSpan.FromMinutes(2));
+                    BringWindowToFront();
                     var query = QueryHelpers.Parse(callbackUri);
                     if (query.TryGetValue("error", out var error))
                     {
+                        if (query.TryGetValue("error_description", out var description) && !string.IsNullOrWhiteSpace(description))
+                        {
+                            throw new InvalidOperationException(description);
+                        }
+
                         throw new InvalidOperationException(error);
                     }
 
-                    await LoadSettingsAsync();
-                    SetSettingsBanner(_isRussian ? "Google аккаунт успешно привязан." : "Google account linked successfully.", false);
+                    await CompleteGoogleLinkSignInAsync(callbackUri);
+                    var currentUserId = ExtractUserId();
+                    if (!string.Equals(previousUserId, currentUserId, StringComparison.OrdinalIgnoreCase))
+                    {
+                        _session = previousSession;
+                        PersistSession();
+                        await LoadSettingsAsync(clearBanner: false);
+                        throw new InvalidOperationException(
+                            _isRussian
+                                ? "Вы вошли через другой Google-аккаунт. Для привязки используйте Google с тем же email, что и у текущего профиля."
+                                : "You signed in with a different Google account. Use the Google account with the same email as the current profile.");
+                    }
+
+                    var identities = await WaitForLinkedIdentitiesAsync();
+                    _settingsSnapshot ??= CreateFallbackSettingsSnapshot(currentUserId);
+                    _settingsSnapshot.Identities = identities;
+                    await LoadSettingsAsync(clearBanner: false);
+                    RenderSettingsContent();
+
+                    var linkedGoogleIdentity = identities.FirstOrDefault(identity =>
+                        string.Equals(identity.Provider, "google", StringComparison.OrdinalIgnoreCase));
+                    if (linkedGoogleIdentity == null)
+                    {
+                        var providers = identities
+                            .Select(identity => identity.Provider)
+                            .Where(provider => !string.IsNullOrWhiteSpace(provider))
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .ToList();
+                        var providersText = providers.Count == 0
+                            ? (_isRussian ? "identity не найдены" : "no identities found")
+                            : string.Join(", ", providers);
+                        throw new InvalidOperationException(
+                            _isRussian
+                                ? $"Google вход завершился, но identity не появилась в профиле. Текущие identity: {providersText}."
+                                : $"Google sign-in completed, but the identity did not appear in the profile. Current identities: {providersText}.");
+                    }
+
+                    SetSettingsBanner(_isRussian ? "Google аккаунт подключён." : "Google account linked.", false);
                 }
                 catch (Exception ex)
                 {
@@ -7048,20 +7357,21 @@ namespace Assistant.WinUI
                 return;
             }
 
-            var identityId = googleIdentity.IdentityId ?? googleIdentity.Id;
-            if (string.IsNullOrWhiteSpace(identityId))
-            {
-                SetSettingsBanner(_isRussian ? "Не удалось определить identity Google." : "Failed to resolve the Google identity.", true);
-                return;
-            }
-
             try
             {
                 _settingsBusyAction = "google_unlink";
                 RenderSettingsContent();
-                await _authClient.UnlinkIdentityAsync(_session.AccessToken, identityId);
-                await LoadSettingsAsync();
-                SetSettingsBanner(_isRussian ? "Google аккаунт отвязан." : "Google account unlinked.", false);
+                var accessToken = await GetFreshAccessTokenAsync();
+                await _settingsClient.UnlinkGoogleIdentityAsync(accessToken);
+                if (_settingsSnapshot != null)
+                {
+                    _settingsSnapshot.Identities = _settingsSnapshot.Identities
+                        .Where(identity => !string.Equals(identity.Provider, "google", StringComparison.OrdinalIgnoreCase))
+                        .ToList();
+                }
+                RenderSettingsContent();
+                await LoadSettingsAsync(clearBanner: false);
+                SetSettingsBanner(_isRussian ? "Google аккаунт отключён." : "Google account disconnected.", false);
             }
             catch (Exception ex)
             {
@@ -7071,6 +7381,134 @@ namespace Assistant.WinUI
             {
                 _settingsBusyAction = null;
                 RenderSettingsContent();
+            }
+        }
+
+        private static AuthSession CloneSession(AuthSession session) => new()
+        {
+            AccessToken = session.AccessToken,
+            RefreshToken = session.RefreshToken,
+            TokenType = session.TokenType,
+            ExpiresIn = session.ExpiresIn,
+            ExpiresAt = session.ExpiresAt,
+            UserId = session.UserId,
+            UserEmail = session.UserEmail
+        };
+
+        private async Task<List<LinkedIdentity>> WaitForLinkedIdentitiesAsync()
+        {
+            if (_settingsClient == null || _session == null)
+            {
+                return new List<LinkedIdentity>();
+            }
+
+            List<LinkedIdentity> latest = new();
+            for (var attempt = 0; attempt < 8; attempt++)
+            {
+                latest = await LoadLinkedIdentitiesAsync();
+                if (latest.Any(identity => string.Equals(identity.Provider, "google", StringComparison.OrdinalIgnoreCase)))
+                {
+                    return latest;
+                }
+
+                await Task.Delay(350);
+            }
+
+            return latest;
+        }
+
+        private async Task CompleteGoogleLinkSignInAsync(Uri callbackUri)
+        {
+            var query = QueryHelpers.Parse(callbackUri);
+            if (query.TryGetValue("error", out var error))
+            {
+                if (query.TryGetValue("error_description", out var description) && !string.IsNullOrWhiteSpace(description))
+                {
+                    throw new InvalidOperationException(description);
+                }
+
+                throw new InvalidOperationException(error);
+            }
+
+            if (!query.TryGetValue("code", out var code) || string.IsNullOrWhiteSpace(code))
+            {
+                throw new InvalidOperationException(_isRussian ? "Код авторизации Google не получен." : "Google authorization code is missing.");
+            }
+
+            var verifier = PkceStore.Load();
+            if (string.IsNullOrWhiteSpace(verifier))
+            {
+                throw new InvalidOperationException(_isRussian ? "Нет PKCE verifier." : "Missing PKCE verifier.");
+            }
+
+            _session = await _authClient.ExchangeCodeForSessionAsync(code, verifier);
+            PersistSession();
+            PkceStore.Clear();
+        }
+
+        private async Task<List<LinkedIdentity>> LoadLinkedIdentitiesAsync()
+        {
+            if (_settingsClient == null)
+            {
+                return new List<LinkedIdentity>();
+            }
+
+            Exception? lastError = null;
+            for (var attempt = 0; attempt < 5; attempt++)
+            {
+                try
+                {
+                    var accessToken = await GetFreshAccessTokenAsync();
+                    return await _settingsClient.GetLinkedIdentitiesAsync(accessToken);
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    if (attempt < 4)
+                    {
+                        await Task.Delay(250);
+                    }
+                }
+            }
+
+            throw lastError ?? new InvalidOperationException(_isRussian ? "Не удалось загрузить связанные identity." : "Failed to load linked identities.");
+        }
+
+        private List<LinkedIdentity> BuildLinkedIdentityFallbacksFromSession()
+        {
+            var providers = ExtractSessionProviders();
+            return providers
+                .Select(provider => new LinkedIdentity
+                {
+                    Provider = provider
+                })
+                .ToList();
+        }
+
+        private void BringWindowToFront()
+        {
+            try
+            {
+                Activate();
+                var hWnd = WindowNative.GetWindowHandle(this);
+                if (hWnd == IntPtr.Zero)
+                {
+                    return;
+                }
+
+                if (AppWindow?.Presenter is OverlappedPresenter presenter && presenter.State == OverlappedPresenterState.Minimized)
+                {
+                    ShowWindow(hWnd, SwRestore);
+                }
+                else
+                {
+                    ShowWindow(hWnd, SwShow);
+                }
+                SetForegroundWindow(hWnd);
+            }
+            catch
+            {
+                // ignore focus errors
             }
         }
 
@@ -7148,6 +7586,113 @@ namespace Assistant.WinUI
             {
                 _settingsBusyAction = null;
                 RenderSettingsContent();
+            }
+        }
+
+        private async Task ConfirmFinanceResetAsync()
+        {
+            if (_financeClient == null || _session == null)
+            {
+                return;
+            }
+
+            var input = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Введите: сбросить" : "Type: reset"
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Content.XamlRoot,
+                Title = _isRussian ? "Подтвердите сброс финансов" : "Confirm finance reset",
+                PrimaryButtonText = _isRussian ? "Сбросить финансы" : "Reset finance",
+                CloseButtonText = _isRussian ? "Отмена" : "Cancel",
+                DefaultButton = ContentDialogButton.Close,
+                Content = new StackPanel
+                {
+                    Spacing = 12,
+                    Children =
+                    {
+                        new TextBlock
+                        {
+                            Text = _isRussian
+                                ? "Чтобы подтвердить сброс, введите слово «сбросить». Все счета, транзакции, категории и настройки обзора будут удалены. После этого финансы начнутся с чистого листа."
+                                : "Type “reset” to confirm. All accounts, transactions, categories, and overview settings will be deleted. Finance will start again from a clean state.",
+                            TextWrapping = TextWrapping.Wrap
+                        },
+                        input
+                    }
+                }
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary)
+            {
+                return;
+            }
+
+            var expected = _isRussian ? "сбросить" : "reset";
+            if (!string.Equals(input.Text?.Trim(), expected, StringComparison.OrdinalIgnoreCase))
+            {
+                SetSettingsBanner(
+                    _isRussian ? "Введите слово «сбросить» для подтверждения." : "Type “reset” to confirm.",
+                    true);
+                return;
+            }
+
+            try
+            {
+                _settingsBusyAction = "finance_reset";
+                RenderSettingsContent();
+                await _financeClient.ResetAllAsync(_session.AccessToken);
+                ResetFinanceState();
+                SetSettingsBanner(
+                    _isRussian ? "Финансы сброшены. Раздел можно заполнить заново." : "Finance reset complete. You can set up the workspace again.",
+                    false);
+            }
+            catch (Exception ex)
+            {
+                SetSettingsBanner(
+                    LocalizeAuthError(ex.Message, _isRussian ? "Не удалось сбросить финансы." : "Failed to reset finance."),
+                    true);
+            }
+            finally
+            {
+                _settingsBusyAction = null;
+                RenderSettingsContent();
+            }
+        }
+
+        private void ResetFinanceState()
+        {
+            _financeOnboardingStep = 0;
+            _financeOverview = null;
+            _financeTransactionsMonth = null;
+            _financeCategories.Clear();
+            _financeSelectedTransactionsMonth = null;
+            _financeTransactionsMonthLoading = false;
+            _financeMonthCache.Clear();
+            _financeAnalytics = null;
+            _financeAnalyticsFromMonth = null;
+            _financeAnalyticsToMonth = null;
+            _financeAnalyticsPreset = "current";
+            _financeAnalyticsLoading = false;
+            FinanceErrorCard.Visibility = Visibility.Collapsed;
+            FinanceLoadingCard.Visibility = Visibility.Collapsed;
+            FinanceCurrencyCombo.SelectedIndex = -1;
+            FinanceBankCombo.SelectedIndex = -1;
+            FinanceOnboardingCardTypeCombo.SelectedIndex = -1;
+            FinanceOnboardingLastFourInput.Text = string.Empty;
+            FinancePrimaryBalanceInput.Text = string.Empty;
+            FinanceCashInput.Text = string.Empty;
+
+            if (_section == DashboardSection.Finance)
+            {
+                _financeTab = FinanceTab.Overview;
+                _activeSubsection = "overview";
+                ApplySecondaryTabs();
+                ApplyFinanceTabButtons();
+                RenderFinanceContent();
             }
         }
 
@@ -7893,6 +8438,68 @@ namespace Assistant.WinUI
                 ? _session.UserEmail!
                 : (string.IsNullOrWhiteSpace(EmailInput.Text) ? "session@assistant" : EmailInput.Text.Trim());
 
+        private List<string> ExtractSessionProviders()
+        {
+            var token = _session?.AccessToken;
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                return new List<string>();
+            }
+
+            try
+            {
+                var parts = token.Split('.');
+                if (parts.Length < 2)
+                {
+                    return new List<string>();
+                }
+
+                var payload = parts[1]
+                    .Replace('-', '+')
+                    .Replace('_', '/');
+                payload = payload.PadRight(payload.Length + (4 - payload.Length % 4) % 4, '=');
+                var bytes = Convert.FromBase64String(payload);
+                using var doc = JsonDocument.Parse(bytes);
+
+                if (doc.RootElement.TryGetProperty("app_metadata", out var appMetadata))
+                {
+                    if (appMetadata.TryGetProperty("providers", out var providersElement) &&
+                        providersElement.ValueKind == JsonValueKind.Array)
+                    {
+                        var providers = new List<string>();
+                        foreach (var item in providersElement.EnumerateArray())
+                        {
+                            var provider = item.GetString()?.Trim();
+                            if (!string.IsNullOrWhiteSpace(provider) &&
+                                !providers.Contains(provider, StringComparer.OrdinalIgnoreCase))
+                            {
+                                providers.Add(provider);
+                            }
+                        }
+
+                        if (providers.Count > 0)
+                        {
+                            return providers;
+                        }
+                    }
+
+                    if (appMetadata.TryGetProperty("provider", out var providerElement))
+                    {
+                        var provider = providerElement.GetString()?.Trim();
+                        if (!string.IsNullOrWhiteSpace(provider))
+                        {
+                            return new List<string> { provider };
+                        }
+                    }
+                }
+            }
+            catch
+            {
+            }
+
+            return new List<string>();
+        }
+
         private string ExtractDisplayName()
         {
             if (!string.IsNullOrWhiteSpace(_settingsSnapshot?.DisplayName))
@@ -7923,6 +8530,7 @@ namespace Assistant.WinUI
                 safeMessage,
                 isError,
                 true,
+                false,
                 isError
                     ? (_isRussian ? "Нужно внимание" : "Attention required")
                     : (_isRussian ? "Готово" : "Done"));
@@ -7933,6 +8541,7 @@ namespace Assistant.WinUI
             string? message,
             bool isError,
             bool isAuthBar,
+            bool persist,
             string title)
         {
             var animationCts = isAuthBar ? _authStatusAnimationCts : _settingsStatusAnimationCts;
@@ -7995,6 +8604,11 @@ namespace Assistant.WinUI
 
             try
             {
+                if (persist)
+                {
+                    return;
+                }
+
                 await Task.Delay(isError ? TimeSpan.FromSeconds(4.8) : TimeSpan.FromSeconds(3.2), token);
                 await HideAnimatedInfoBarAsync(infoBar, token);
             }
@@ -8109,6 +8723,27 @@ namespace Assistant.WinUI
                 return _isRussian ? "Проблема сети. Проверьте подключение и попробуйте снова." : "Network issue. Check your connection and try again.";
             }
 
+            if (normalized.Contains("manual linking") && normalized.Contains("disabled"))
+            {
+                return _isRussian
+                    ? "В текущей конфигурации Supabase ручная привязка или отвязка Google недоступна."
+                    : "Manual Google linking or unlinking is unavailable in the current Supabase configuration.";
+            }
+
+            if (normalized.Contains("not added to the linked identities"))
+            {
+                return _isRussian
+                    ? "Google OAuth завершился, но identity не привязалась. Скорее всего, в Supabase выключен Manual Linking."
+                    : "Google OAuth completed, but the identity was not linked. Manual Linking is likely disabled in Supabase.";
+            }
+
+            if (normalized.Contains("different google account"))
+            {
+                return _isRussian
+                    ? "Выбран другой Google-аккаунт. Для привязки нужен тот же email, что и у текущего профиля."
+                    : "A different Google account was selected. Use the same email as the current profile.";
+            }
+
             if (normalized.Contains("invalid jwt") || normalized.Contains("\"code\":401") || normalized.Contains("jwt"))
             {
                 return _isRussian ? "Сессия устарела. Попробуйте открыть настройки ещё раз." : "Your session expired. Open Settings again.";
@@ -8120,6 +8755,46 @@ namespace Assistant.WinUI
             }
 
             return fallback;
+        }
+
+        private string LocalizeSettingsLoadError(string? raw)
+        {
+            var message = raw?.Trim() ?? string.Empty;
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                return _isRussian ? "Не удалось загрузить настройки." : "Failed to load settings.";
+            }
+
+            var normalized = message.ToLowerInvariant();
+            if (normalized.Contains("profiles"))
+            {
+                return _isRussian
+                    ? "Не удалось загрузить профиль: имя или email."
+                    : "Failed to load the profile: display name or email.";
+            }
+
+            if (normalized.Contains("user_settings"))
+            {
+                return _isRussian
+                    ? "Не удалось загрузить настройки Gemini."
+                    : "Failed to load Gemini settings.";
+            }
+
+            if (normalized.Contains("settings_get_linked_identities") || normalized.Contains("identity"))
+            {
+                return _isRussian
+                    ? "Не удалось загрузить привязанные способы входа."
+                    : "Failed to load linked sign-in methods.";
+            }
+
+            if (normalized.Contains("bad gateway") || normalized.Contains("gateway") || normalized.Contains("timeout") || normalized.Contains("timed out"))
+            {
+                return _isRussian
+                    ? "Не удалось загрузить часть настроек из-за временной проблемы сети или Supabase."
+                    : "Part of the settings could not be loaded because of a temporary network or Supabase issue.";
+            }
+
+            return _isRussian ? "Не удалось загрузить настройки." : "Failed to load settings.";
         }
 
         private void LoadSession()

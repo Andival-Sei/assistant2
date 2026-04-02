@@ -208,6 +208,48 @@ namespace Assistant.WinUI.Finance
         public Guid? CategoryId { get; set; }
     }
 
+    internal sealed class FinanceCreateTransactionRequest
+    {
+        [JsonPropertyName("clientRequestId")]
+        public Guid ClientRequestId { get; set; }
+
+        [JsonPropertyName("accountId")]
+        public Guid AccountId { get; set; }
+
+        [JsonPropertyName("direction")]
+        public string Direction { get; set; } = string.Empty;
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("note")]
+        public string? Note { get; set; }
+
+        [JsonPropertyName("amountMinor")]
+        public long? AmountMinor { get; set; }
+
+        [JsonPropertyName("currency")]
+        public string Currency { get; set; } = "RUB";
+
+        [JsonPropertyName("happenedAt")]
+        public DateTimeOffset? HappenedAt { get; set; }
+
+        [JsonPropertyName("categoryId")]
+        public Guid? CategoryId { get; set; }
+
+        [JsonPropertyName("items")]
+        public List<FinanceTransactionItemDraft> Items { get; set; } = new();
+
+        [JsonPropertyName("destinationAccountId")]
+        public Guid? DestinationAccountId { get; set; }
+
+        [JsonPropertyName("sourceType")]
+        public string SourceType { get; set; } = "manual";
+
+        [JsonPropertyName("merchantName")]
+        public string? MerchantName { get; set; }
+    }
+
     internal sealed class FinanceCategory
     {
         [JsonPropertyName("id")]

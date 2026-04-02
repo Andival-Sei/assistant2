@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using Assistant.WinUI.Auth;
+using System.Collections.Generic;
 
 namespace Assistant.WinUI.Settings
 {
@@ -33,12 +34,11 @@ namespace Assistant.WinUI.Settings
             var profilePayload = string.Empty;
             try
             {
-                profilePayload = await SendAsync(
-                    HttpMethod.Get,
+                profilePayload = await SendReadWithRetryAsync(
                     $"rest/v1/profiles?select=display_name,email&id=eq.{Uri.EscapeDataString(userId)}",
                     accessToken);
             }
-            catch (InvalidOperationException ex) when (IsMissingProfilesContract(ex.Message) || IsPermissionOrShapeIssue(ex.Message))
+            catch (InvalidOperationException ex) when (IsMissingProfilesContract(ex.Message) || IsPermissionOrShapeIssue(ex.Message) || IsTransientReadIssue(ex.Message))
             {
                 profilePayload = string.Empty;
             }
@@ -46,20 +46,18 @@ namespace Assistant.WinUI.Settings
             var settingsPayload = string.Empty;
             try
             {
-                settingsPayload = await SendAsync(
-                    HttpMethod.Get,
+                settingsPayload = await SendReadWithRetryAsync(
                     $"rest/v1/user_settings?select=gemini_api_key,ai_enhancements_enabled&user_id=eq.{Uri.EscapeDataString(userId)}&limit=1",
                     accessToken);
 
                 if (IsEmptyJsonArray(settingsPayload))
                 {
-                    settingsPayload = await SendAsync(
-                        HttpMethod.Get,
+                    settingsPayload = await SendReadWithRetryAsync(
                         "rest/v1/user_settings?select=gemini_api_key,ai_enhancements_enabled&order=updated_at.desc&limit=1",
                         accessToken);
                 }
             }
-            catch (InvalidOperationException ex) when (IsPermissionOrShapeIssue(ex.Message))
+            catch (InvalidOperationException ex) when (IsPermissionOrShapeIssue(ex.Message) || IsTransientReadIssue(ex.Message))
             {
                 settingsPayload = string.Empty;
             }
@@ -128,6 +126,18 @@ namespace Assistant.WinUI.Settings
                    normalized.Contains("column") && normalized.Contains("does not exist");
         }
 
+        private static bool IsTransientReadIssue(string? message)
+        {
+            var normalized = message?.ToLowerInvariant() ?? string.Empty;
+            return normalized.Contains("bad gateway") ||
+                   normalized.Contains("gateway") ||
+                   normalized.Contains("timeout") ||
+                   normalized.Contains("timed out") ||
+                   normalized.Contains("http 502") ||
+                   normalized.Contains("http 503") ||
+                   normalized.Contains("http 504");
+        }
+
         private static bool IsEmptyJsonArray(string? payload)
         {
             if (string.IsNullOrWhiteSpace(payload))
@@ -185,6 +195,43 @@ namespace Assistant.WinUI.Settings
                 "functions/v1/delete-account",
                 accessToken,
                 "{}");
+
+        public async Task<List<LinkedIdentity>> GetLinkedIdentitiesAsync(string accessToken)
+        {
+            var payload = await SendAsync(
+                HttpMethod.Post,
+                "rest/v1/rpc/settings_get_linked_identities",
+                accessToken,
+                "{}");
+
+            return JsonSerializer.Deserialize<List<LinkedIdentity>>(payload, JsonOptions) ?? new List<LinkedIdentity>();
+        }
+
+        public Task UnlinkGoogleIdentityAsync(string accessToken) =>
+            SendAsync(
+                HttpMethod.Post,
+                "rest/v1/rpc/settings_unlink_google_identity",
+                accessToken,
+                "{}");
+
+        private async Task<string> SendReadWithRetryAsync(string path, string accessToken, int maxAttempts = 3)
+        {
+            InvalidOperationException? lastError = null;
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                try
+                {
+                    return await SendAsync(HttpMethod.Get, path, accessToken);
+                }
+                catch (InvalidOperationException ex) when (IsTransientReadIssue(ex.Message) && attempt < maxAttempts - 1)
+                {
+                    lastError = ex;
+                    await Task.Delay(220 * (attempt + 1));
+                }
+            }
+
+            throw lastError ?? new InvalidOperationException("Read request failed.");
+        }
 
         private async Task<string> SendAsync(
             HttpMethod method,
