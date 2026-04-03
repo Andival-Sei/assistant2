@@ -86,7 +86,9 @@ namespace Assistant.WinUI.Finance
         public Task<FinanceOverview> UpsertAccountAsync(
             string accessToken,
             Guid? id,
+            string kind,
             string providerCode,
+            string? name,
             string? cardType,
             string? lastFourDigits,
             long balanceMinor,
@@ -96,14 +98,25 @@ namespace Assistant.WinUI.Finance
             long? creditDebtMinor,
             long? creditRequiredPaymentMinor,
             DateTimeOffset? creditPaymentDueDate,
-            DateTimeOffset? creditGracePeriodEndDate) =>
+            DateTimeOffset? creditGracePeriodEndDate,
+            long? loanPrincipalMinor,
+            long? loanCurrentDebtMinor,
+            decimal? loanInterestPercent,
+            long? loanPaymentAmountMinor,
+            DateTimeOffset? loanPaymentDueDate,
+            int? loanRemainingPaymentsCount,
+            long? loanTotalPayableMinor,
+            int? loanTotalPaymentsCount,
+            long? loanFinalPaymentMinor) =>
             PostAsync<FinanceOverview>(
                 "finance_upsert_account",
                 accessToken,
                 new
                 {
                     p_id = id,
+                    p_kind = kind,
                     p_provider_code = providerCode,
+                    p_name = name,
                     p_card_type = cardType,
                     p_last_four_digits = lastFourDigits,
                     p_balance_minor = balanceMinor,
@@ -113,7 +126,34 @@ namespace Assistant.WinUI.Finance
                     p_credit_debt_minor = creditDebtMinor,
                     p_credit_required_payment_minor = creditRequiredPaymentMinor,
                     p_credit_payment_due_date = creditPaymentDueDate?.Date,
-                    p_credit_grace_period_end_date = creditGracePeriodEndDate?.Date
+                    p_credit_grace_period_end_date = creditGracePeriodEndDate?.Date,
+                    p_loan_principal_minor = loanPrincipalMinor,
+                    p_loan_current_debt_minor = loanCurrentDebtMinor,
+                    p_loan_interest_percent = loanInterestPercent,
+                    p_loan_payment_amount_minor = loanPaymentAmountMinor,
+                    p_loan_payment_due_date = loanPaymentDueDate?.Date,
+                    p_loan_remaining_payments_count = loanRemainingPaymentsCount,
+                    p_loan_total_payable_minor = loanTotalPayableMinor,
+                    p_loan_total_payments_count = loanTotalPaymentsCount,
+                    p_loan_final_payment_minor = loanFinalPaymentMinor
+                });
+
+        public Task<FinanceOverview> RecordLoanPaymentAsync(
+            string accessToken,
+            FinanceRecordLoanPaymentRequest request) =>
+            PostAsync<FinanceOverview>(
+                "finance_record_loan_payment",
+                accessToken,
+                new
+                {
+                    p_source_account_id = request.SourceAccountId,
+                    p_loan_account_id = request.LoanAccountId,
+                    p_amount_minor = request.AmountMinor,
+                    p_new_current_debt_minor = request.NewCurrentDebtMinor,
+                    p_happened_at = request.HappenedAt,
+                    p_title = request.Title,
+                    p_note = request.Note,
+                    p_source_type = request.SourceType
                 });
 
         public Task<FinanceOverview> CreateTransactionsAsync(

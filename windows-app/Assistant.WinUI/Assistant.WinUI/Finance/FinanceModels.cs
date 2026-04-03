@@ -36,6 +36,9 @@ namespace Assistant.WinUI.Finance
         [JsonPropertyName("creditSpendMinor")]
         public long CreditSpendMinor { get; set; }
 
+        [JsonPropertyName("loanDebtMinor")]
+        public long LoanDebtMinor { get; set; }
+
         [JsonPropertyName("monthIncomeMinor")]
         public long MonthIncomeMinor { get; set; }
 
@@ -101,6 +104,33 @@ namespace Assistant.WinUI.Finance
 
         [JsonPropertyName("creditGracePeriodEndDate")]
         public DateTimeOffset? CreditGracePeriodEndDate { get; set; }
+
+        [JsonPropertyName("loanPrincipalMinor")]
+        public long? LoanPrincipalMinor { get; set; }
+
+        [JsonPropertyName("loanCurrentDebtMinor")]
+        public long? LoanCurrentDebtMinor { get; set; }
+
+        [JsonPropertyName("loanInterestPercent")]
+        public decimal? LoanInterestPercent { get; set; }
+
+        [JsonPropertyName("loanPaymentAmountMinor")]
+        public long? LoanPaymentAmountMinor { get; set; }
+
+        [JsonPropertyName("loanPaymentDueDate")]
+        public DateTimeOffset? LoanPaymentDueDate { get; set; }
+
+        [JsonPropertyName("loanRemainingPaymentsCount")]
+        public int? LoanRemainingPaymentsCount { get; set; }
+
+        [JsonPropertyName("loanTotalPayableMinor")]
+        public long? LoanTotalPayableMinor { get; set; }
+
+        [JsonPropertyName("loanTotalPaymentsCount")]
+        public int? LoanTotalPaymentsCount { get; set; }
+
+        [JsonPropertyName("loanFinalPaymentMinor")]
+        public long? LoanFinalPaymentMinor { get; set; }
 
         [JsonPropertyName("isPrimary")]
         public bool IsPrimary { get; set; }
@@ -275,6 +305,33 @@ namespace Assistant.WinUI.Finance
 
         [JsonPropertyName("displayOrder")]
         public int DisplayOrder { get; set; }
+    }
+
+    internal sealed class FinanceRecordLoanPaymentRequest
+    {
+        [JsonPropertyName("sourceAccountId")]
+        public Guid SourceAccountId { get; set; }
+
+        [JsonPropertyName("loanAccountId")]
+        public Guid LoanAccountId { get; set; }
+
+        [JsonPropertyName("amountMinor")]
+        public long AmountMinor { get; set; }
+
+        [JsonPropertyName("newCurrentDebtMinor")]
+        public long NewCurrentDebtMinor { get; set; }
+
+        [JsonPropertyName("happenedAt")]
+        public DateTimeOffset HappenedAt { get; set; }
+
+        [JsonPropertyName("title")]
+        public string? Title { get; set; }
+
+        [JsonPropertyName("note")]
+        public string? Note { get; set; }
+
+        [JsonPropertyName("sourceType")]
+        public string SourceType { get; set; } = "manual";
     }
 
     internal sealed class FinanceTransactionsMonth

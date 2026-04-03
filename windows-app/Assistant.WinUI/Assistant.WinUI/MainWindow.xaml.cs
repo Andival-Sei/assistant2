@@ -235,6 +235,8 @@ namespace Assistant.WinUI
             "card_balance",
             "cash_balance",
             "credit_debt",
+            "loan_debt",
+            "loan_full_debt",
             "credit_spend",
             "month_income",
             "month_expense",
@@ -1452,8 +1454,8 @@ namespace Assistant.WinUI
             var currency = overview.DefaultCurrency ?? "RUB";
             FinanceBalanceText.Text = FormatMoney(overview.TotalBalanceMinor, currency);
             FinanceBalanceHint.Text = _isRussian
-                ? "Баланс складывается из всех счетов и наличных."
-                : "Balance is aggregated from all accounts and cash.";
+                ? "Баланс складывается из собственных счетов и наличных. Кредиты и кредитки идут отдельно."
+                : "Balance is aggregated from your own accounts and cash. Loans and credit liabilities stay separate.";
             FinanceSettingsTitle.Text = _financeTab == FinanceTab.Analytics
                 ? (_isRussian ? "Аналитика" : "Analytics")
                 : (_isRussian ? "Категории" : "Categories");
@@ -1686,7 +1688,7 @@ namespace Assistant.WinUI
         {
             FinanceOverviewCardsPanel.Children.Clear();
 
-            var orderedCards = overview.OverviewCards
+            var orderedCards = GetRenderedOverviewCards(overview)
                 .Where(id => !string.Equals(id, "recent_transactions", StringComparison.OrdinalIgnoreCase))
                 .Where(id => GetOverviewCardMetric(overview, id) > 0)
                 .ToList();
@@ -1717,15 +1719,53 @@ namespace Assistant.WinUI
             }
         }
 
+        private List<string> GetRenderedOverviewCards(FinanceOverview overview)
+        {
+            return (overview.OverviewCards.Count == 0
+                    ? OverviewCardOrder.AsEnumerable()
+                    : overview.OverviewCards.AsEnumerable())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+
+        private List<string> GetOverviewSettingsCards(FinanceOverview overview)
+        {
+            var cards = (overview.OverviewCards.Count == 0
+                    ? OverviewCardOrder.AsEnumerable()
+                    : overview.OverviewCards.AsEnumerable())
+                .Concat(OverviewCardOrder)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+
+            if (overview.Accounts.Any(IsLoanAccount) &&
+                !cards.Contains("loan_full_debt", StringComparer.OrdinalIgnoreCase))
+            {
+                var insertIndex = cards.FindIndex(id => string.Equals(id, "loan_debt", StringComparison.OrdinalIgnoreCase));
+                if (insertIndex >= 0)
+                {
+                    cards.Insert(insertIndex + 1, "loan_full_debt");
+                }
+                else
+                {
+                    cards.Add("loan_full_debt");
+                }
+            }
+
+            return cards;
+        }
+
         private Border CreateOverviewMetricCard(FinanceOverview overview, string cardId, bool emphasize)
         {
             var currency = overview.DefaultCurrency ?? "RUB";
+            var loanFullDebtMinor = GetOverviewLoanFullDebtMinor(overview);
             var (title, value) = cardId switch
             {
                 "total_balance" => (_isRussian ? "Общий баланс" : "Total balance", FormatMoney(overview.TotalBalanceMinor, currency)),
                 "card_balance" => (_isRussian ? "На картах" : "On cards", FormatMoney(overview.CardBalanceMinor, currency)),
                 "cash_balance" => (_isRussian ? "Наличные" : "Cash", FormatMoney(overview.CashBalanceMinor, currency)),
                 "credit_debt" => (_isRussian ? "Долг по кредиткам" : "Credit card debt", FormatMoney(-overview.CreditDebtMinor, currency)),
+                "loan_debt" => (_isRussian ? "Долг по кредитам" : "Loan debt", FormatMoney(-overview.LoanDebtMinor, currency)),
+                "loan_full_debt" => (_isRussian ? "Полный долг по кредитам" : "Full loan payoff", FormatMoney(-loanFullDebtMinor, currency)),
                 "credit_spend" => (_isRussian ? "Покупки по кредитке" : "Credit card spending", FormatMoney(-overview.CreditSpendMinor, currency)),
                 "month_income" => (_isRussian ? "Доходы" : "Income", FormatMoney(overview.MonthIncomeMinor, currency)),
                 "month_expense" => (_isRussian ? "Расходы" : "Expenses", FormatMoney(-overview.MonthExpenseMinor, currency)),
@@ -1789,6 +1829,16 @@ namespace Assistant.WinUI
                 Foreground = (Brush)Application.Current.Resources["InkBrush"],
                 TextWrapping = TextWrapping.Wrap
             });
+
+            if ((string.Equals(cardId, "loan_debt", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(cardId, "loan_full_debt", StringComparison.OrdinalIgnoreCase)) &&
+                overview.Accounts.Any(IsLoanAccount))
+            {
+                var actionButton = CreateFinanceMiniButton(_isRussian ? "Внести платёж" : "Make payment");
+                actionButton.HorizontalAlignment = HorizontalAlignment.Left;
+                actionButton.Click += async (_, _) => await ShowLoanPaymentDialogAsync(null);
+                stack.Children.Add(actionButton);
+            }
 
             border.Child = stack;
             return border;
@@ -2077,9 +2127,10 @@ namespace Assistant.WinUI
                 }
 
                 activity.count += 1;
-                var isTransfer = string.Equals(transaction.Direction, "transfer", StringComparison.OrdinalIgnoreCase) ||
-                                 string.Equals(transaction.TransactionKind, "transfer", StringComparison.OrdinalIgnoreCase) ||
-                                 transaction.DestinationAccountId.HasValue;
+                var isLoanPayment = string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase);
+                var isTransfer = !isLoanPayment && (
+                    string.Equals(transaction.Direction, "transfer", StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(transaction.TransactionKind, "transfer", StringComparison.OrdinalIgnoreCase));
                 var isCreditSource = account != null && IsCreditAccount(account);
 
                 if (isTransfer)
@@ -2665,12 +2716,7 @@ namespace Assistant.WinUI
                 return;
             }
 
-            var orderedCards = (_financeOverview.OverviewCards.Count == 0
-                    ? OverviewCardOrder.AsEnumerable()
-                    : _financeOverview.OverviewCards.AsEnumerable())
-                .Concat(OverviewCardOrder)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var orderedCards = GetOverviewSettingsCards(_financeOverview);
             var selectedCards = new HashSet<string>(_financeOverview.OverviewCards, StringComparer.OrdinalIgnoreCase);
             var contentHost = new StackPanel { Spacing = 10 };
             var surfaces = new List<Border>();
@@ -3072,22 +3118,65 @@ namespace Assistant.WinUI
                 return;
             }
 
-            var providers = GetFinanceAccountProviders();
+            var providers = GetFinanceAccountProviders()
+                .Where(provider => !string.Equals(provider.Code, "cash", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            var accountKindCombo = new ComboBox();
+            accountKindCombo.Items.Add(new ComboBoxItem { Tag = "bank_card", Content = _isRussian ? "Карта" : "Card" });
+            accountKindCombo.Items.Add(new ComboBoxItem { Tag = "loan", Content = GetLoanKindLabel() });
+            accountKindCombo.Items.Add(new ComboBoxItem { Tag = "cash", Content = _isRussian ? "Наличные" : "Cash" });
+
             var providerCombo = new ComboBox();
             foreach (var provider in providers)
             {
                 providerCombo.Items.Add(new ComboBoxItem { Tag = provider.Code, Content = provider.Label });
             }
 
-            var selectedProvider = account?.ProviderCode ?? "tbank";
-            SelectComboItemByTag(providerCombo, selectedProvider);
+            SelectComboItemByTag(accountKindCombo, account?.Kind ?? "bank_card");
+            SelectComboItemByTag(providerCombo, account?.ProviderCode ?? "tbank");
 
             var cardTypeCombo = new ComboBox();
             cardTypeCombo.Items.Add(new ComboBoxItem { Tag = "debit", Content = _isRussian ? "Дебетовая" : "Debit" });
             cardTypeCombo.Items.Add(new ComboBoxItem { Tag = "credit", Content = _isRussian ? "Кредитная" : "Credit" });
             SelectComboItemByTag(cardTypeCombo, account?.CardType ?? "debit");
             var lastFourInput = new TextBox { PlaceholderText = _isRussian ? "1234" : "1234", MaxLength = 4, Text = account?.LastFourDigits ?? string.Empty };
-            var amountInput = new TextBox { PlaceholderText = "0", Text = account != null ? FormatAmountInput(account.BalanceMinor) : string.Empty };
+            var amountInput = new TextBox { PlaceholderText = "0", Text = account != null && !IsLoanAccount(account) ? FormatAmountInput(account.BalanceMinor) : string.Empty };
+            var loanNameInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Например, Кредит наличными" : "For example, Cash loan",
+                Text = account != null && IsLoanAccount(account) ? account.Name : string.Empty
+            };
+            var loanPrincipalInput = new TextBox { PlaceholderText = "0", Text = account?.LoanPrincipalMinor is long loanPrincipal ? FormatAmountInput(loanPrincipal) : string.Empty };
+            var loanDebtInput = new TextBox { PlaceholderText = "0", Text = account?.LoanCurrentDebtMinor is long loanDebt ? FormatAmountInput(loanDebt) : string.Empty };
+            var loanInterestInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Например, 26,5" : "For example, 26.5",
+                Text = account?.LoanInterestPercent is decimal loanInterest
+                    ? loanInterest.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',')
+                    : string.Empty
+            };
+            var loanPaymentAmountInput = new TextBox { PlaceholderText = "0", Text = account?.LoanPaymentAmountMinor is long loanPayment ? FormatAmountInput(loanPayment) : string.Empty };
+            var loanPaymentDuePicker = new DatePicker { Date = account?.LoanPaymentDueDate ?? DateTimeOffset.Now.AddMonths(1) };
+            var loanRemainingPaymentsInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Например, 48" : "For example, 48",
+                Text = account?.LoanRemainingPaymentsCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty
+            };
+            var loanTotalPayableInput = new TextBox
+            {
+                PlaceholderText = "0",
+                Text = account?.LoanTotalPayableMinor is long loanTotalPayable ? FormatAmountInput(loanTotalPayable) : string.Empty
+            };
+            var loanTotalPaymentsInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Например, 83" : "For example, 83",
+                Text = account?.LoanTotalPaymentsCount?.ToString(CultureInfo.InvariantCulture) ?? string.Empty
+            };
+            var loanFinalPaymentInput = new TextBox
+            {
+                PlaceholderText = "0",
+                Text = account?.LoanFinalPaymentMinor is long loanFinalPayment ? FormatAmountInput(loanFinalPayment) : string.Empty
+            };
             var creditLimitInput = new TextBox { PlaceholderText = "0", Text = account?.CreditLimitMinor is long creditLimit ? FormatAmountInput(creditLimit) : string.Empty };
             var creditDebtInput = new TextBox { PlaceholderText = "0", Text = account?.CreditDebtMinor is long creditDebt ? FormatAmountInput(creditDebt) : string.Empty };
             var creditRequiredPaymentInput = new TextBox { PlaceholderText = "0", Text = account?.CreditRequiredPaymentMinor is long requiredPayment && requiredPayment > 0 ? FormatAmountInput(requiredPayment) : string.Empty };
@@ -3120,7 +3209,163 @@ namespace Assistant.WinUI
                 Text = _isRussian ? "Текущий баланс" : "Current balance",
                 Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
             };
+            var accountKindSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Тип сущности" : "Entity kind",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    accountKindCombo
+                }
+            };
+            var providerSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Банк" : "Bank",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    providerCombo
+                }
+            };
             var amountSection = new StackPanel { Spacing = 6, Children = { amountLabel, amountInput } };
+            var loanNameSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Название кредита" : "Loan name",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanNameInput
+                }
+            };
+            var loanPrincipalSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Сумма кредита" : "Loan principal",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanPrincipalInput
+                }
+            };
+            var loanDebtSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Текущий остаток долга" : "Current debt",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanDebtInput
+                }
+            };
+            var loanInterestSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Процентная ставка, %" : "Interest rate, %",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanInterestInput
+                }
+            };
+            var loanPaymentAmountSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Следующий платёж" : "Next payment",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanPaymentAmountInput
+                }
+            };
+            var loanPaymentDueSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Дата следующего платежа" : "Next payment date",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanPaymentDuePicker
+                }
+            };
+            var loanRemainingPaymentsSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Осталось платежей" : "Payments remaining",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanRemainingPaymentsInput
+                }
+            };
+            var loanTotalPayableSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Всего заплатите" : "Total payable",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanTotalPayableInput
+                }
+            };
+            var loanTotalPaymentsSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Всего платежей" : "Total payments",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanTotalPaymentsInput
+                }
+            };
+            var loanFinalPaymentSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Последний платёж" : "Final payment",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanFinalPaymentInput
+                }
+            };
             var creditLimitSection = new StackPanel
             {
                 Spacing = 6,
@@ -3207,13 +3452,26 @@ namespace Assistant.WinUI
 
             void SyncState()
             {
-                var providerCode = (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "tbank";
-                var isCash = string.Equals(providerCode, "cash", StringComparison.OrdinalIgnoreCase);
-                var isCredit = !isCash && string.Equals((cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string, "credit", StringComparison.OrdinalIgnoreCase);
-                cardTypeSection.Visibility = isCash ? Visibility.Collapsed : Visibility.Visible;
-                lastFourSection.Visibility = isCash ? Visibility.Collapsed : Visibility.Visible;
-                primaryCheck.Visibility = isCash ? Visibility.Collapsed : Visibility.Visible;
-                amountSection.Visibility = isCredit ? Visibility.Collapsed : Visibility.Visible;
+                var selectedKind = (accountKindCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "bank_card";
+                var isCash = string.Equals(selectedKind, "cash", StringComparison.OrdinalIgnoreCase);
+                var isLoan = string.Equals(selectedKind, "loan", StringComparison.OrdinalIgnoreCase);
+                var isCard = string.Equals(selectedKind, "bank_card", StringComparison.OrdinalIgnoreCase);
+                var isCredit = isCard && string.Equals((cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string, "credit", StringComparison.OrdinalIgnoreCase);
+                providerSection.Visibility = isCash ? Visibility.Collapsed : Visibility.Visible;
+                cardTypeSection.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+                lastFourSection.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+                primaryCheck.Visibility = isCard ? Visibility.Visible : Visibility.Collapsed;
+                amountSection.Visibility = isCash || (isCard && !isCredit) ? Visibility.Visible : Visibility.Collapsed;
+                loanNameSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanPrincipalSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanDebtSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanInterestSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanPaymentAmountSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanPaymentDueSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanRemainingPaymentsSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanTotalPayableSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanTotalPaymentsSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
+                loanFinalPaymentSection.Visibility = isLoan ? Visibility.Visible : Visibility.Collapsed;
                 creditLimitSection.Visibility = isCredit ? Visibility.Visible : Visibility.Collapsed;
                 creditDebtSection.Visibility = isCredit ? Visibility.Visible : Visibility.Collapsed;
                 creditRequiredPaymentSection.Visibility = isCredit ? Visibility.Visible : Visibility.Collapsed;
@@ -3222,18 +3480,22 @@ namespace Assistant.WinUI
                 amountLabel.Text = isCash
                     ? (_isRussian ? "Сумма наличных" : "Cash amount")
                     : (_isRussian ? "Текущий баланс" : "Current balance");
-                amountInput.IsEnabled = isCredit || (account?.BalanceEditable ?? true);
+                amountInput.IsEnabled = isCash || !isCredit || (account?.BalanceEditable ?? true);
                 creditPaymentDuePicker.IsEnabled = creditPaymentDueCheck.IsChecked == true;
                 creditGracePeriodPicker.IsEnabled = creditGracePeriodCheck.IsChecked == true;
-                noteText.Text = isCredit
+                noteText.Text = isLoan
                     ? (_isRussian
-                        ? "Кредитка учитывается как долг: покупки увеличивают задолженность, а пополнения и переводы на неё уменьшают её."
-                        : "Credit cards are tracked as debt: spending increases the liability, while repayments and incoming transfers reduce it.")
+                        ? "Кредит хранится как отдельная сущность с явным графиком. После платежа долг обновляется по фактическому значению из банка."
+                        : "Loans are tracked as a separate entity with an explicit payment plan. After each payment the debt is updated from the actual bank value.")
+                    : isCredit
+                        ? (_isRussian
+                            ? "Кредитка учитывается как долг: покупки увеличивают задолженность, а пополнения и переводы на неё уменьшают её."
+                            : "Credit cards are tracked as debt: spending increases the liability, while repayments and incoming transfers reduce it.")
                     : account != null && !account.BalanceEditable
                         ? (_isRussian
                             ? "Сумму нельзя менять после первой транзакции по счёту."
                             : "Balance is locked after the first transaction for this account.")
-                        : providers.FirstOrDefault(item => string.Equals(item.Code, providerCode, StringComparison.OrdinalIgnoreCase)).Description;
+                        : providers.FirstOrDefault(item => string.Equals(item.Code, (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string, StringComparison.OrdinalIgnoreCase)).Description;
                 if (isCash)
                 {
                     primaryCheck.IsChecked = false;
@@ -3241,6 +3503,7 @@ namespace Assistant.WinUI
                 }
             }
 
+            accountKindCombo.SelectionChanged += (_, _) => SyncState();
             providerCombo.SelectionChanged += (_, _) => SyncState();
             cardTypeCombo.SelectionChanged += (_, _) => SyncState();
             creditPaymentDueCheck.Checked += (_, _) => SyncState();
@@ -3252,13 +3515,24 @@ namespace Assistant.WinUI
             var content = new StackPanel { Spacing = 12 };
             content.Children.Add(new TextBlock
             {
-                Text = _isRussian ? "Счёт / банк" : "Account / bank",
+                Text = _isRussian ? "Параметры сущности" : "Entity settings",
                 Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
             });
-            content.Children.Add(providerCombo);
+            content.Children.Add(accountKindSection);
+            content.Children.Add(providerSection);
             content.Children.Add(cardTypeSection);
             content.Children.Add(lastFourSection);
             content.Children.Add(amountSection);
+            content.Children.Add(loanNameSection);
+            content.Children.Add(loanPrincipalSection);
+            content.Children.Add(loanDebtSection);
+            content.Children.Add(loanInterestSection);
+            content.Children.Add(loanPaymentAmountSection);
+            content.Children.Add(loanPaymentDueSection);
+            content.Children.Add(loanRemainingPaymentsSection);
+            content.Children.Add(loanTotalPayableSection);
+            content.Children.Add(loanTotalPaymentsSection);
+            content.Children.Add(loanFinalPaymentSection);
             content.Children.Add(creditLimitSection);
             content.Children.Add(creditDebtSection);
             content.Children.Add(creditRequiredPaymentSection);
@@ -3266,6 +3540,14 @@ namespace Assistant.WinUI
             content.Children.Add(creditGraceSection);
             content.Children.Add(primaryCheck);
             content.Children.Add(noteText);
+
+            var contentScroll = new ScrollViewer
+            {
+                Content = content,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                MaxHeight = 640
+            };
 
             var dialog = new ContentDialog
             {
@@ -3276,8 +3558,15 @@ namespace Assistant.WinUI
                 PrimaryButtonText = _isRussian ? "Сохранить" : "Save",
                 CloseButtonText = _isRussian ? "Отмена" : "Cancel",
                 DefaultButton = ContentDialogButton.Primary,
-                Content = content
+                Content = contentScroll
             };
+
+            void ShowValidationError(string message, Control target)
+            {
+                noteText.Text = message;
+                target.Focus(FocusState.Programmatic);
+                target.StartBringIntoView();
+            }
 
             dialog.PrimaryButtonClick += async (_, args) =>
             {
@@ -3287,14 +3576,20 @@ namespace Assistant.WinUI
                 dialog.IsSecondaryButtonEnabled = false;
                 try
                 {
-                    var providerCodeToSave = (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "tbank";
-                    var isCash = string.Equals(providerCodeToSave, "cash", StringComparison.OrdinalIgnoreCase);
-                    var cardType = isCash ? null : (cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "debit";
-                    var isCredit = !isCash && string.Equals(cardType, "credit", StringComparison.OrdinalIgnoreCase);
-                    var lastFourDigits = isCash ? null : NormalizeLastFourDigits(lastFourInput.Text);
-                    if (!isCash && lastFourDigits == null)
+                    var selectedKind = (accountKindCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "bank_card";
+                    var isCash = string.Equals(selectedKind, "cash", StringComparison.OrdinalIgnoreCase);
+                    var isLoan = string.Equals(selectedKind, "loan", StringComparison.OrdinalIgnoreCase);
+                    var providerCodeToSave = isCash
+                        ? "cash"
+                        : (providerCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "tbank";
+                    var cardType = selectedKind == "bank_card" ? (cardTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "debit" : null;
+                    var isCredit = selectedKind == "bank_card" && string.Equals(cardType, "credit", StringComparison.OrdinalIgnoreCase);
+                    var lastFourDigits = selectedKind == "bank_card" ? NormalizeLastFourDigits(lastFourInput.Text) : null;
+                    if (selectedKind == "bank_card" && lastFourDigits == null)
                     {
-                        noteText.Text = _isRussian ? "Укажите последние 4 цифры карты." : "Enter the last 4 card digits.";
+                        ShowValidationError(
+                            _isRussian ? "Укажите последние 4 цифры карты." : "Enter the last 4 card digits.",
+                            lastFourInput);
                         return;
                     }
 
@@ -3304,6 +3599,16 @@ namespace Assistant.WinUI
                     long? creditRequiredPaymentMinor = null;
                     DateTimeOffset? creditPaymentDueDate = null;
                     DateTimeOffset? creditGracePeriodEndDate = null;
+                    string? loanName = null;
+                    long? loanPrincipalMinor = null;
+                    long? loanCurrentDebtMinor = null;
+                    decimal? loanInterestPercent = null;
+                    long? loanPaymentAmountMinor = null;
+                    DateTimeOffset? loanPaymentDueDate = null;
+                    int? loanRemainingPaymentsCount = null;
+                    long? loanTotalPayableMinor = null;
+                    int? loanTotalPaymentsCount = null;
+                    long? loanFinalPaymentMinor = null;
 
                     if (isCredit)
                     {
@@ -3311,9 +3616,11 @@ namespace Assistant.WinUI
                         creditDebtMinor = ParseMoneyInputToMinor(creditDebtInput.Text);
                         if (creditLimitMinor is null || creditLimitMinor <= 0 || creditDebtMinor is null)
                         {
-                            noteText.Text = _isRussian
-                                ? "Укажите корректные кредитный лимит и текущий долг."
-                                : "Enter valid credit limit and current debt.";
+                            ShowValidationError(
+                                _isRussian
+                                    ? "Укажите корректные кредитный лимит и текущий долг."
+                                    : "Enter valid credit limit and current debt.",
+                                creditLimitInput);
                             return;
                         }
 
@@ -3322,9 +3629,11 @@ namespace Assistant.WinUI
                             creditRequiredPaymentMinor = ParseMoneyInputToMinor(creditRequiredPaymentInput.Text);
                             if (creditRequiredPaymentMinor is null)
                             {
-                                noteText.Text = _isRussian
-                                    ? "Введите корректный минимальный платёж."
-                                    : "Enter a valid required payment.";
+                                ShowValidationError(
+                                    _isRussian
+                                        ? "Введите корректный минимальный платёж."
+                                        : "Enter a valid required payment.",
+                                    creditRequiredPaymentInput);
                                 return;
                             }
                         }
@@ -3332,12 +3641,77 @@ namespace Assistant.WinUI
                         creditPaymentDueDate = creditPaymentDueCheck.IsChecked == true ? creditPaymentDuePicker.Date : null;
                         creditGracePeriodEndDate = creditGracePeriodCheck.IsChecked == true ? creditGracePeriodPicker.Date : null;
                     }
+                    else if (isLoan)
+                    {
+                        loanName = string.IsNullOrWhiteSpace(loanNameInput.Text) ? null : loanNameInput.Text.Trim();
+                        loanPrincipalMinor = ParseMoneyInputToMinor(loanPrincipalInput.Text);
+                        loanCurrentDebtMinor = ParseMoneyInputToMinor(loanDebtInput.Text);
+                        loanPaymentAmountMinor = ParseMoneyInputToMinor(loanPaymentAmountInput.Text);
+                        loanPaymentDueDate = loanPaymentDuePicker.Date;
+                        loanTotalPayableMinor = ParseMoneyInputToMinor(loanTotalPayableInput.Text);
+                        loanFinalPaymentMinor = ParseMoneyInputToMinor(loanFinalPaymentInput.Text);
+                        if (!decimal.TryParse(loanInterestInput.Text.Trim().Replace(" ", string.Empty).Replace(',', '.'), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedInterest))
+                        {
+                            ShowValidationError(
+                                _isRussian ? "Введите корректную процентную ставку." : "Enter a valid interest rate.",
+                                loanInterestInput);
+                            return;
+                        }
+
+                        loanInterestPercent = parsedInterest;
+                        if (!int.TryParse(loanRemainingPaymentsInput.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRemainingPayments))
+                        {
+                            ShowValidationError(
+                                _isRussian ? "Введите корректное число оставшихся платежей." : "Enter a valid number of payments remaining.",
+                                loanRemainingPaymentsInput);
+                            return;
+                        }
+
+                        loanRemainingPaymentsCount = parsedRemainingPayments;
+                        if (!int.TryParse(loanTotalPaymentsInput.Text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedTotalPayments))
+                        {
+                            ShowValidationError(
+                                _isRussian ? "Введите корректное общее количество платежей." : "Enter a valid total number of payments.",
+                                loanTotalPaymentsInput);
+                            return;
+                        }
+
+                        loanTotalPaymentsCount = parsedTotalPayments;
+                        if (string.IsNullOrWhiteSpace(loanName) ||
+                            loanPrincipalMinor is null || loanPrincipalMinor <= 0 ||
+                            loanCurrentDebtMinor is null || loanCurrentDebtMinor < 0 ||
+                            loanPaymentAmountMinor is null || loanPaymentAmountMinor <= 0 ||
+                            loanTotalPayableMinor is null || loanTotalPayableMinor <= 0 ||
+                            loanFinalPaymentMinor is null || loanFinalPaymentMinor <= 0 ||
+                            loanInterestPercent is null || loanInterestPercent < 0 ||
+                            loanRemainingPaymentsCount < 0 ||
+                            loanTotalPaymentsCount <= 0 ||
+                            loanRemainingPaymentsCount > loanTotalPaymentsCount)
+                        {
+                            ShowValidationError(
+                                _isRussian
+                                    ? "Заполните все поля кредита корректно. Проверьте график: общее число платежей, остаток и последний платёж."
+                                    : "Fill in all loan fields with valid values. Check the total payments, remaining payments, and final payment.",
+                                string.IsNullOrWhiteSpace(loanName) ? loanNameInput :
+                                loanPrincipalMinor is null || loanPrincipalMinor <= 0 ? loanPrincipalInput :
+                                loanCurrentDebtMinor is null || loanCurrentDebtMinor < 0 ? loanDebtInput :
+                                loanPaymentAmountMinor is null || loanPaymentAmountMinor <= 0 ? loanPaymentAmountInput :
+                                loanTotalPayableMinor is null || loanTotalPayableMinor <= 0 ? loanTotalPayableInput :
+                                loanFinalPaymentMinor is null || loanFinalPaymentMinor <= 0 ? loanFinalPaymentInput :
+                                loanInterestPercent is null || loanInterestPercent < 0 ? loanInterestInput :
+                                loanTotalPaymentsCount <= 0 ? loanTotalPaymentsInput :
+                                loanRemainingPaymentsInput);
+                            return;
+                        }
+                    }
                     else
                     {
                         balanceMinor = ParseMoneyInputToMinor(amountInput.Text);
                         if (balanceMinor == null)
                         {
-                            noteText.Text = _isRussian ? "Введите корректную сумму." : "Enter a valid amount.";
+                            ShowValidationError(
+                                _isRussian ? "Введите корректную сумму." : "Enter a valid amount.",
+                                amountInput);
                             return;
                         }
                     }
@@ -3346,17 +3720,28 @@ namespace Assistant.WinUI
                     _financeOverview = await _financeClient.UpsertAccountAsync(
                         accessToken,
                         account?.Id,
+                        selectedKind,
                         providerCodeToSave,
+                        loanName,
                         cardType,
                         lastFourDigits,
                         balanceMinor ?? 0,
                         _financeOverview.DefaultCurrency ?? "RUB",
-                        !isCash && primaryCheck.IsChecked == true,
+                        selectedKind == "bank_card" && primaryCheck.IsChecked == true,
                         creditLimitMinor,
                         creditDebtMinor,
                         creditRequiredPaymentMinor,
                         creditPaymentDueDate,
-                        creditGracePeriodEndDate);
+                        creditGracePeriodEndDate,
+                        loanPrincipalMinor,
+                        loanCurrentDebtMinor,
+                        loanInterestPercent,
+                        loanPaymentAmountMinor,
+                        loanPaymentDueDate,
+                        loanRemainingPaymentsCount,
+                        loanTotalPayableMinor,
+                        loanTotalPaymentsCount,
+                        loanFinalPaymentMinor);
                     _financeAnalytics = null;
                     RenderFinanceContent();
                     SetStatus(account == null
@@ -3414,6 +3799,495 @@ namespace Assistant.WinUI
             {
                 SetStatus($"{title}: {body}", true);
             }
+        }
+
+        private async Task ShowLoanPaymentDialogAsync(Guid? preferredLoanId)
+        {
+            if (_financeClient == null || _session == null || string.IsNullOrWhiteSpace(_session.AccessToken) || _financeOverview == null)
+            {
+                return;
+            }
+
+            var loanAccounts = GetLoanAccounts();
+            if (loanAccounts.Count == 0)
+            {
+                await ShowFinanceMessageDialogAsync(
+                    _isRussian ? "Нет кредитов" : "No loans",
+                    _isRussian
+                        ? "Сначала добавьте хотя бы один кредитный счёт, чтобы провести платёж."
+                        : "Add at least one loan account before recording a payment.");
+                return;
+            }
+
+            var sourceAccounts = GetLoanPaymentSourceAccounts();
+            if (sourceAccounts.Count == 0)
+            {
+                await ShowFinanceMessageDialogAsync(
+                    _isRussian ? "Нет счёта списания" : "No payment source",
+                    _isRussian
+                        ? "Для оплаты кредита нужен обычный счёт или наличные с положительным балансом."
+                        : "A regular account or cash balance is required to pay the loan.");
+                return;
+            }
+
+            var selectedLoan = loanAccounts.FirstOrDefault(item => preferredLoanId.HasValue && item.Id == preferredLoanId.Value)
+                ?? loanAccounts.First();
+            var selectedSourceAccount = sourceAccounts.FirstOrDefault(item => item.IsPrimary) ?? sourceAccounts.First();
+
+            var root = new StackPanel
+            {
+                Spacing = 16,
+                MaxWidth = 520
+            };
+
+            var introText = CreateMutedText(_isRussian
+                ? "Платёж по кредиту уменьшит долг, создаст расход и отдельную транзакцию погашения."
+                : "A loan payment reduces the debt, creates an expense, and records a dedicated repayment transaction.");
+            root.Children.Add(introText);
+
+            var loanCombo = new ComboBox();
+            foreach (var loan in loanAccounts)
+            {
+                loanCombo.Items.Add(new ComboBoxItem
+                {
+                    Tag = loan.Id.ToString(),
+                    Content = GetFinanceAccountDisplayName(loan)
+                });
+            }
+
+            SelectComboItemByTag(loanCombo, selectedLoan.Id.ToString());
+
+            var loanPickerSection = new StackPanel
+            {
+                Spacing = 6,
+                Visibility = preferredLoanId.HasValue || loanAccounts.Count == 1 ? Visibility.Collapsed : Visibility.Visible,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Кредит" : "Loan",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    loanCombo
+                }
+            };
+            root.Children.Add(loanPickerSection);
+
+            var loanSummaryTitle = new TextBlock
+            {
+                FontSize = 16,
+                FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                Foreground = (Brush)Application.Current.Resources["InkBrush"]
+            };
+            var loanSummarySubtitle = CreateMutedText(string.Empty);
+            var loanSummaryBody = CreateMutedText(string.Empty);
+
+            var loanSummaryCard = new Border
+            {
+                Background = (Brush)Application.Current.Resources["PageBackgroundBrush"],
+                BorderBrush = (Brush)Application.Current.Resources["StrokeBrush"],
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(18),
+                Padding = new Thickness(14, 12, 14, 12),
+                Child = new StackPanel
+                {
+                    Spacing = 4,
+                    Children =
+                    {
+                        loanSummaryTitle,
+                        loanSummarySubtitle,
+                        loanSummaryBody
+                    }
+                }
+            };
+            root.Children.Add(loanSummaryCard);
+
+            var sourceCombo = new ComboBox();
+            foreach (var sourceAccount in sourceAccounts)
+            {
+                sourceCombo.Items.Add(new ComboBoxItem
+                {
+                    Tag = sourceAccount.Id.ToString(),
+                    Content = GetFinanceAccountDisplayName(sourceAccount)
+                });
+            }
+
+            SelectComboItemByTag(sourceCombo, selectedSourceAccount.Id.ToString());
+
+            root.Children.Add(new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Счёт списания" : "Source account",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    sourceCombo
+                }
+            });
+
+            var paymentTypeCombo = new ComboBox();
+            paymentTypeCombo.Items.Add(new ComboBoxItem
+            {
+                Tag = "standard",
+                Content = _isRussian ? "Стандартный платёж" : "Standard payment"
+            });
+            paymentTypeCombo.Items.Add(new ComboBoxItem
+            {
+                Tag = "custom",
+                Content = _isRussian ? "Платёж с другой суммой" : "Custom amount"
+            });
+
+            var amountInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Например, 9500" : "For example, 9500"
+            };
+            var newDebtInput = new TextBox
+            {
+                PlaceholderText = _isRussian ? "Введите остаток долга после платежа" : "Enter the outstanding debt after payment"
+            };
+            var standardPaymentHint = CreateMutedText(string.Empty);
+            var amountSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Сумма платежа" : "Payment amount",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    standardPaymentHint,
+                    amountInput
+                }
+            };
+            var newDebtSection = new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Остаток долга после платежа" : "Outstanding debt after payment",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    CreateMutedText(_isRussian
+                        ? "Берём фактическое значение из банка после проведения платежа."
+                        : "Use the actual value from the bank after the payment is posted."),
+                    newDebtInput
+                }
+            };
+            root.Children.Add(new StackPanel
+            {
+                Spacing = 6,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = _isRussian ? "Режим платежа" : "Payment mode",
+                        Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                    },
+                    paymentTypeCombo,
+                    amountSection,
+                    newDebtSection
+                }
+            });
+
+            var datePicker = new DatePicker
+            {
+                Date = DateTimeOffset.Now,
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            var timePicker = new TimePicker
+            {
+                Time = DateTimeOffset.Now.TimeOfDay,
+                ClockIdentifier = "24HourClock",
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+            root.Children.Add(new StackPanel
+            {
+                Spacing = 10,
+                Children =
+                {
+                    new StackPanel
+                    {
+                        Spacing = 6,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = _isRussian ? "Дата платежа" : "Payment date",
+                                Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                            },
+                            datePicker
+                        }
+                    },
+                    new StackPanel
+                    {
+                        Spacing = 6,
+                        Children =
+                        {
+                            new TextBlock
+                            {
+                                Text = _isRussian ? "Время платежа" : "Payment time",
+                                Foreground = (Brush)Application.Current.Resources["MutedTextBrush"]
+                            },
+                            timePicker
+                        }
+                    }
+                }
+            });
+
+            var noteText = CreateMutedText(string.Empty);
+            root.Children.Add(noteText);
+
+            var contentScroll = new ScrollViewer
+            {
+                Content = root,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                MaxHeight = 640
+            };
+
+            var dialog = new ContentDialog
+            {
+                XamlRoot = Content.XamlRoot,
+                Title = _isRussian ? "Платёж по кредиту" : "Loan payment",
+                PrimaryButtonText = _isRussian ? "Оплатить" : "Pay",
+                CloseButtonText = _isRussian ? "Отмена" : "Cancel",
+                DefaultButton = ContentDialogButton.Primary,
+                Content = contentScroll
+            };
+
+            void ShowValidationError(string message, Control target)
+            {
+                noteText.Text = message;
+                target.Focus(FocusState.Programmatic);
+                target.StartBringIntoView();
+            }
+
+            void RefreshLoanSummary()
+            {
+                loanSummaryTitle.Text = GetFinanceAccountTitle(selectedLoan);
+                loanSummarySubtitle.Text = GetFinanceAccountSubtitle(selectedLoan);
+
+                var summaryParts = new List<string>
+                {
+                    (_isRussian ? "Текущий долг" : "Current debt") + ": " + FormatMoney(selectedLoan.LoanCurrentDebtMinor ?? selectedLoan.BalanceMinor, selectedLoan.Currency)
+                };
+
+                if (selectedLoan.LoanPaymentAmountMinor is long paymentMinor)
+                {
+                    summaryParts.Add((_isRussian ? "Обычный платёж" : "Regular payment") + ": " + FormatMoney(paymentMinor, selectedLoan.Currency));
+                }
+
+                if (selectedLoan.LoanFinalPaymentMinor is long finalPaymentMinor)
+                {
+                    summaryParts.Add((_isRussian ? "Последний платёж" : "Final payment") + ": " + FormatMoney(finalPaymentMinor, selectedLoan.Currency));
+                }
+
+                if (selectedLoan.LoanPaymentDueDate is DateTimeOffset dueDate)
+                {
+                    summaryParts.Add((_isRussian ? "Ближайший платёж" : "Next due date") + ": " + dueDate.ToString("d", _isRussian ? new CultureInfo("ru-RU") : new CultureInfo("en-US")));
+                }
+
+                if (selectedLoan.LoanRemainingPaymentsCount is int remainingCount)
+                {
+                    summaryParts.Add(_isRussian ? $"Осталось платежей: {remainingCount}" : $"Payments left: {remainingCount}");
+                }
+
+                if (selectedLoan.LoanTotalPaymentsCount is int totalPayments)
+                {
+                    var paidPayments = GetLoanPaidPaymentsCount(selectedLoan) ?? 0;
+                    summaryParts.Add(_isRussian
+                        ? $"Платежей пройдено: {paidPayments} из {totalPayments}"
+                        : $"Payments completed: {paidPayments} of {totalPayments}");
+                }
+
+                loanSummaryBody.Text = string.Join(" · ", summaryParts);
+            }
+
+            void RefreshPaymentModeState()
+            {
+                var scheduledPaymentAmountMinor = GetLoanScheduledPaymentAmount(selectedLoan);
+                var hasStandardAmount = scheduledPaymentAmountMinor is > 0;
+                if (!hasStandardAmount)
+                {
+                    SelectComboItemByTag(paymentTypeCombo, "custom");
+                }
+
+                if (paymentTypeCombo.SelectedItem is not ComboBoxItem selectedModeItem || selectedModeItem.Tag is not string mode)
+                {
+                    mode = hasStandardAmount ? "standard" : "custom";
+                    SelectComboItemByTag(paymentTypeCombo, mode);
+                }
+
+                var useStandard = string.Equals((paymentTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string, "standard", StringComparison.OrdinalIgnoreCase) && hasStandardAmount;
+                standardPaymentHint.Text = useStandard
+                    ? (_isRussian
+                        ? $"Будет использован следующий платёж по графику: {FormatMoney(scheduledPaymentAmountMinor ?? 0, selectedLoan.Currency)}"
+                        : $"The next scheduled payment will be used: {FormatMoney(scheduledPaymentAmountMinor ?? 0, selectedLoan.Currency)}")
+                    : (_isRussian
+                        ? "Введите сумму, если платёж отличается от стандартного."
+                        : "Enter a different amount for a non-standard payment.");
+                amountInput.Visibility = useStandard ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            newDebtInput.Text = FormatAmountInput(selectedLoan.LoanCurrentDebtMinor ?? selectedLoan.BalanceMinor);
+            SelectComboItemByTag(paymentTypeCombo, GetLoanScheduledPaymentAmount(selectedLoan) is > 0 ? "standard" : "custom");
+            RefreshLoanSummary();
+            RefreshPaymentModeState();
+
+            loanCombo.SelectionChanged += (_, _) =>
+            {
+                if (loanCombo.SelectedItem is ComboBoxItem item &&
+                    item.Tag is string rawId &&
+                    Guid.TryParse(rawId, out var loanId))
+                {
+                    var nextLoan = loanAccounts.FirstOrDefault(account => account.Id == loanId);
+                    if (nextLoan != null)
+                    {
+                        selectedLoan = nextLoan;
+                        newDebtInput.Text = FormatAmountInput(selectedLoan.LoanCurrentDebtMinor ?? selectedLoan.BalanceMinor);
+                        RefreshLoanSummary();
+                        RefreshPaymentModeState();
+                    }
+                }
+            };
+
+            paymentTypeCombo.SelectionChanged += (_, _) => RefreshPaymentModeState();
+
+            dialog.PrimaryButtonClick += async (_, args) =>
+            {
+                args.Cancel = true;
+                var deferral = args.GetDeferral();
+                dialog.IsPrimaryButtonEnabled = false;
+                dialog.IsSecondaryButtonEnabled = false;
+                try
+                {
+                    if (sourceCombo.SelectedItem is not ComboBoxItem sourceItem ||
+                        sourceItem.Tag is not string sourceRawId ||
+                        !Guid.TryParse(sourceRawId, out var sourceAccountId))
+                    {
+                        ShowValidationError(
+                            _isRussian ? "Выберите счёт списания." : "Choose the source account.",
+                            sourceCombo);
+                        return;
+                    }
+
+                    selectedSourceAccount = sourceAccounts.First(account => account.Id == sourceAccountId);
+
+                    var mode = (paymentTypeCombo.SelectedItem as ComboBoxItem)?.Tag as string ?? "custom";
+                    long? amountMinor = string.Equals(mode, "standard", StringComparison.OrdinalIgnoreCase)
+                        ? GetLoanScheduledPaymentAmount(selectedLoan)
+                        : ParseMoneyInputToMinor(amountInput.Text);
+                    var currentDebtMinor = selectedLoan.LoanCurrentDebtMinor ?? selectedLoan.BalanceMinor;
+                    var newCurrentDebtMinor = ParseMoneyInputToMinor(newDebtInput.Text);
+
+                    if (amountMinor is null || amountMinor <= 0)
+                    {
+                        ShowValidationError(
+                            _isRussian ? "Введите корректную сумму платежа." : "Enter a valid payment amount.",
+                            string.Equals(mode, "standard", StringComparison.OrdinalIgnoreCase) ? paymentTypeCombo : amountInput);
+                        return;
+                    }
+
+                    if (newCurrentDebtMinor is null || newCurrentDebtMinor < 0)
+                    {
+                        ShowValidationError(
+                            _isRussian ? "Введите корректный остаток долга после платежа." : "Enter a valid outstanding debt after payment.",
+                            newDebtInput);
+                        return;
+                    }
+
+                    if (currentDebtMinor <= 0)
+                    {
+                        ShowValidationError(
+                            _isRussian ? "По этому кредиту уже нет остатка долга." : "This loan has no outstanding debt left.",
+                            paymentTypeCombo);
+                        return;
+                    }
+
+                    if (amountMinor > currentDebtMinor)
+                    {
+                        ShowValidationError(
+                            _isRussian ? "Сумма платежа не может превышать текущий остаток долга." : "The payment amount cannot exceed the outstanding debt.",
+                            string.Equals(mode, "standard", StringComparison.OrdinalIgnoreCase) ? paymentTypeCombo : amountInput);
+                        return;
+                    }
+
+                    if (newCurrentDebtMinor > currentDebtMinor)
+                    {
+                        ShowValidationError(
+                            _isRussian ? "Новый остаток долга не может быть больше текущего." : "The new outstanding debt cannot be greater than the current debt.",
+                            newDebtInput);
+                        return;
+                    }
+
+                    var happenedAt = datePicker.Date.Date + timePicker.Time;
+                    var request = new FinanceRecordLoanPaymentRequest
+                    {
+                        SourceAccountId = selectedSourceAccount.Id,
+                        LoanAccountId = selectedLoan.Id,
+                        Title = _isRussian ? "Платёж по кредиту" : "Loan payment",
+                        AmountMinor = amountMinor.Value,
+                        NewCurrentDebtMinor = newCurrentDebtMinor.Value,
+                        HappenedAt = happenedAt,
+                        SourceType = "manual"
+                    };
+
+                    var balanceCheckRequest = new FinanceCreateTransactionRequest
+                    {
+                        ClientRequestId = Guid.NewGuid(),
+                        AccountId = selectedSourceAccount.Id,
+                        Direction = "expense",
+                        Title = request.Title,
+                        AmountMinor = request.AmountMinor,
+                        Currency = selectedSourceAccount.Currency,
+                        HappenedAt = happenedAt,
+                        SourceType = "manual"
+                    };
+                    if (!TryValidateFinanceDraftBalances(new[] { balanceCheckRequest }, out var balanceError))
+                    {
+                        ShowValidationError(balanceError, sourceCombo);
+                        return;
+                    }
+
+                    var accessToken = await GetFreshFinanceAccessTokenAsync();
+                    _financeOverview = await _financeClient.RecordLoanPaymentAsync(accessToken, request);
+                    _financeAnalytics = null;
+                    await LoadFinanceTransactionsMonthAsync(_financeSelectedTransactionsMonth ?? happenedAt.ToString("yyyy-MM"), true);
+                    RenderFinanceContent();
+                    SetStatus(
+                        _isRussian
+                            ? $"Платёж по кредиту «{GetFinanceAccountTitle(selectedLoan)}» сохранён."
+                            : $"Loan payment for \"{GetFinanceAccountTitle(selectedLoan)}\" has been saved.",
+                        false);
+                    args.Cancel = false;
+                }
+                catch (Exception ex)
+                {
+                    if (HandleFinanceSessionError(ex))
+                    {
+                        args.Cancel = false;
+                        return;
+                    }
+
+                    noteText.Text = LocalizeFinanceRequestError(
+                        ex.Message,
+                        _isRussian ? "Не удалось сохранить платёж по кредиту." : "Failed to save the loan payment.");
+                }
+                finally
+                {
+                    dialog.IsPrimaryButtonEnabled = true;
+                    dialog.IsSecondaryButtonEnabled = true;
+                    deferral.Complete();
+                }
+            };
+
+            await dialog.ShowAsync();
         }
 
         private async Task<string> GetFreshAccessTokenAsync()
@@ -4292,6 +5166,13 @@ namespace Assistant.WinUI
                     : "There are not enough funds on the account for this operation.";
             }
 
+            if (normalized.Contains("account type and identity cannot be changed after first transaction"))
+            {
+                return _isRussian
+                    ? "После первой транзакции нельзя менять тип счёта, банк или идентификационные данные."
+                    : "The account kind, provider, and identity fields cannot be changed after the first transaction.";
+            }
+
             if (normalized.Contains("account type and card identity cannot be changed after first transaction"))
             {
                 return _isRussian
@@ -4304,6 +5185,59 @@ namespace Assistant.WinUI
                 return _isRussian
                     ? "После первой транзакции нельзя менять стартовый баланс счёта."
                     : "The opening balance cannot be changed after the first transaction.";
+            }
+
+            if (normalized.Contains("loan name is required") ||
+                normalized.Contains("loan principal must be positive") ||
+                normalized.Contains("loan current debt must be zero or positive") ||
+                normalized.Contains("loan interest percent must be zero or positive") ||
+                normalized.Contains("loan payment amount must be positive") ||
+                normalized.Contains("loan payment due date is required") ||
+                normalized.Contains("loan remaining payments count must be zero or positive") ||
+                normalized.Contains("loan total payable must be positive") ||
+                normalized.Contains("loan total payments count must be positive") ||
+                normalized.Contains("loan final payment must be positive") ||
+                normalized.Contains("loan remaining payments count cannot exceed total payments count"))
+            {
+                return _isRussian
+                    ? "Заполните все обязательные поля кредита корректными значениями."
+                    : "Fill in the required loan fields with valid values.";
+            }
+
+            if (normalized.Contains("loan payment exceeds outstanding debt"))
+            {
+                return _isRussian
+                    ? "Сумма платежа превышает текущий остаток долга по кредиту."
+                    : "The payment amount exceeds the outstanding loan debt.";
+            }
+
+            if (normalized.Contains("finance_transactions_transaction_kind_check"))
+            {
+                return _isRussian
+                    ? "Сервер ещё не принял новый тип операции для платежа по кредиту. Я уже исправил схему, повторите попытку."
+                    : "The server schema did not accept the new loan payment transaction type. The schema has been fixed; try again.";
+            }
+
+            if (normalized.Contains("loan debt after payment must be zero or positive") ||
+                normalized.Contains("loan debt after payment cannot exceed current debt"))
+            {
+                return _isRussian
+                    ? "Проверьте остаток долга после платежа. Он должен быть фактическим значением из банка."
+                    : "Check the outstanding debt after payment. It must match the actual bank value.";
+            }
+
+            if (normalized.Contains("loan payment source must be a cash or debit account"))
+            {
+                return _isRussian
+                    ? "Платёж по кредиту можно списывать только с наличных или дебетового счёта."
+                    : "Loan payments can only be made from cash or a debit account.";
+            }
+
+            if (normalized.Contains("loan account not found"))
+            {
+                return _isRussian
+                    ? "Кредитный счёт не найден. Обновите раздел финансов и попробуйте снова."
+                    : "The loan account was not found. Refresh Finance and try again.";
             }
 
             if (normalized.Contains("primary card bank is required"))
@@ -5308,7 +6242,8 @@ namespace Assistant.WinUI
             {
                 accountCombo.Items.Clear();
 
-                foreach (var account in _financeOverview?.Accounts ?? Enumerable.Empty<FinanceAccount>())
+                foreach (var account in (_financeOverview?.Accounts ?? Enumerable.Empty<FinanceAccount>())
+                    .Where(account => !IsLoanAccount(account)))
                 {
                     accountCombo.Items.Add(new ComboBoxItem
                     {
@@ -5324,6 +6259,7 @@ namespace Assistant.WinUI
                 destinationCombo.Items.Clear();
 
                 var sourceAccounts = _financeOverview?.Accounts
+                    .Where(account => !IsLoanAccount(account))
                     .Where(account => !string.Equals(account.Id.ToString(), draft.AccountId, StringComparison.OrdinalIgnoreCase))
                     .ToList() ?? new List<FinanceAccount>();
 
@@ -6134,12 +7070,91 @@ namespace Assistant.WinUI
             (string.Equals(account.Kind, "bank_card", StringComparison.OrdinalIgnoreCase) &&
              !string.Equals(account.CardType, "credit", StringComparison.OrdinalIgnoreCase));
 
+        private static bool IsLoanAccount(FinanceAccount account) =>
+            string.Equals(account.Kind, "loan", StringComparison.OrdinalIgnoreCase);
+
+        private List<FinanceAccount> GetLoanAccounts() => _financeOverview?.Accounts
+            .Where(IsLoanAccount)
+            .OrderBy(item => GetFinanceAccountDisplayName(item), StringComparer.CurrentCultureIgnoreCase)
+            .ToList() ?? new List<FinanceAccount>();
+
+        private List<FinanceAccount> GetLoanPaymentSourceAccounts() => _financeOverview?.Accounts
+            .Where(IsProtectedOwnFundsAccount)
+            .OrderByDescending(item => item.IsPrimary)
+            .ThenBy(item => GetFinanceAccountDisplayName(item), StringComparer.CurrentCultureIgnoreCase)
+            .ToList() ?? new List<FinanceAccount>();
+
+        private long? GetLoanScheduledPaymentAmount(FinanceAccount account)
+        {
+            if (!IsLoanAccount(account))
+            {
+                return null;
+            }
+
+            var remaining = account.LoanRemainingPaymentsCount ?? 0;
+            if (remaining <= 0)
+            {
+                return null;
+            }
+
+            if (remaining == 1 && account.LoanFinalPaymentMinor is > 0)
+            {
+                return account.LoanFinalPaymentMinor;
+            }
+
+            return account.LoanPaymentAmountMinor;
+        }
+
+        private long? GetLoanRemainingPlannedAmount(FinanceAccount account)
+        {
+            if (!IsLoanAccount(account))
+            {
+                return null;
+            }
+
+            var remaining = account.LoanRemainingPaymentsCount ?? 0;
+            if (remaining <= 0)
+            {
+                return 0;
+            }
+
+            var regularPayment = account.LoanPaymentAmountMinor ?? 0;
+            var finalPayment = account.LoanFinalPaymentMinor ?? regularPayment;
+            if (remaining == 1)
+            {
+                return finalPayment;
+            }
+
+            return ((remaining - 1L) * regularPayment) + finalPayment;
+        }
+
+        private long GetOverviewLoanFullDebtMinor(FinanceOverview overview) =>
+            overview.Accounts
+                .Where(IsLoanAccount)
+                .Select(GetLoanRemainingPlannedAmount)
+                .Where(amount => amount.HasValue)
+                .Sum(amount => amount ?? 0);
+
+        private int? GetLoanPaidPaymentsCount(FinanceAccount account)
+        {
+            if (!IsLoanAccount(account) ||
+                account.LoanTotalPaymentsCount is not int totalPayments ||
+                account.LoanRemainingPaymentsCount is not int remainingPayments)
+            {
+                return null;
+            }
+
+            return Math.Max(totalPayments - remainingPayments, 0);
+        }
+
         private long GetOverviewCardMetric(FinanceOverview overview, string cardId) => cardId switch
         {
             "total_balance" => Math.Abs(overview.TotalBalanceMinor),
             "card_balance" => Math.Abs(overview.CardBalanceMinor),
             "cash_balance" => Math.Abs(overview.CashBalanceMinor),
             "credit_debt" => Math.Abs(overview.CreditDebtMinor),
+            "loan_debt" => Math.Abs(overview.LoanDebtMinor),
+            "loan_full_debt" => Math.Abs(GetOverviewLoanFullDebtMinor(overview)),
             "credit_spend" => Math.Abs(overview.CreditSpendMinor),
             "month_income" => Math.Abs(overview.MonthIncomeMinor),
             "month_expense" => Math.Abs(overview.MonthExpenseMinor),
@@ -6154,6 +7169,8 @@ namespace Assistant.WinUI
             "card_balance" => Color.FromArgb(255, 92, 133, 255),
             "cash_balance" => Color.FromArgb(255, 214, 154, 63),
             "credit_debt" => Color.FromArgb(255, 255, 129, 82),
+            "loan_debt" => Color.FromArgb(255, 255, 174, 70),
+            "loan_full_debt" => Color.FromArgb(255, 255, 111, 82),
             "credit_spend" => Color.FromArgb(255, 114, 160, 255),
             "month_income" => Color.FromArgb(255, 35, 224, 138),
             "month_expense" => Color.FromArgb(255, 255, 111, 142),
@@ -6167,6 +7184,8 @@ namespace Assistant.WinUI
             "card_balance" => _isRussian ? "На картах" : "On cards",
             "cash_balance" => _isRussian ? "Наличные" : "Cash",
             "credit_debt" => _isRussian ? "Долг по кредиткам" : "Credit card debt",
+            "loan_debt" => _isRussian ? "Долг по кредитам" : "Loan debt",
+            "loan_full_debt" => _isRussian ? "Полный долг по кредитам" : "Full loan payoff",
             "credit_spend" => _isRussian ? "Покупки по кредиткам" : "Credit card spending",
             "month_income" => _isRussian ? "Доходы за месяц" : "Month income",
             "month_expense" => _isRussian ? "Расходы за месяц" : "Month expense",
@@ -6337,10 +7356,24 @@ namespace Assistant.WinUI
                 Grid.SetColumn(titleStack, 1);
                 header.Children.Add(titleStack);
 
+                var actionsPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                if (IsLoanAccount(account))
+                {
+                    var payButton = CreateFinanceMiniButton(_isRussian ? "Платёж" : "Payment");
+                    payButton.Click += async (_, _) => await ShowLoanPaymentDialogAsync(account.Id);
+                    actionsPanel.Children.Add(payButton);
+                }
+
                 var editButton = CreateFinanceMiniButton(_isRussian ? "Изменить" : "Edit");
                 editButton.Click += async (_, _) => await ShowAccountDialogAsync(account);
-                Grid.SetColumn(editButton, 2);
-                header.Children.Add(editButton);
+                actionsPanel.Children.Add(editButton);
+                Grid.SetColumn(actionsPanel, 2);
+                header.Children.Add(actionsPanel);
 
                 primaryStack.Children.Add(header);
                 var badges = new StackPanel
@@ -6351,6 +7384,8 @@ namespace Assistant.WinUI
                 badges.Children.Add(CreateFinanceBadge(
                     account.Kind == "cash"
                         ? (_isRussian ? "Наличные" : "Cash")
+                        : IsLoanAccount(account)
+                            ? GetLoanKindLabel()
                         : GetFinanceCardTypeLabel(account.CardType)));
                 if (!string.IsNullOrWhiteSpace(account.LastFourDigits))
                 {
@@ -7702,6 +8737,8 @@ namespace Assistant.WinUI
             "card_balance" => "\uE8C7",
             "cash_balance" => "\uEAFD",
             "credit_debt" => "\uE8C7",
+            "loan_debt" => "\uE8C7",
+            "loan_full_debt" => "\uE8C7",
             "credit_spend" => "\uE8AB",
             "month_income" => "\uE74A",
             "month_expense" => "\uE74B",
@@ -7742,6 +8779,8 @@ namespace Assistant.WinUI
             "card_balance" => _isRussian ? "Только собственные деньги на счетах" : "Only your own money on cards",
             "cash_balance" => _isRussian ? "Свободные наличные" : "Cash on hand",
             "credit_debt" => _isRussian ? "Текущая задолженность по кредиткам" : "Current liability on credit cards",
+            "loan_debt" => _isRussian ? "Остаток долга по кредитам" : "Current outstanding loan debt",
+            "loan_full_debt" => _isRussian ? "Сумма всех оставшихся платежей по графику кредита" : "All remaining scheduled loan payments",
             "credit_spend" => _isRussian ? "Покупки, которые увеличили долг по кредиткам за этот месяц" : "Purchases that increased credit card debt this month",
             "month_income" => _isRussian ? "Входящий поток за месяц по собственным деньгам" : "Monthly incoming flow from your own funds",
             "month_expense" => _isRussian ? "Расходы за месяц по собственным деньгам" : "Monthly spending from your own funds",
@@ -8027,7 +9066,9 @@ namespace Assistant.WinUI
             string.Equals(account.CardType, "credit", StringComparison.OrdinalIgnoreCase);
 
         private string GetFinanceAccountPrimaryAmount(FinanceAccount account) =>
-            IsCreditAccount(account)
+            IsLoanAccount(account)
+                ? FormatMoney(-(account.LoanCurrentDebtMinor ?? account.BalanceMinor), account.Currency)
+                : IsCreditAccount(account)
                 ? FormatMoney(-(account.CreditDebtMinor ?? 0), account.Currency)
                 : FormatMoney(account.BalanceMinor, account.Currency);
 
@@ -8036,6 +9077,11 @@ namespace Assistant.WinUI
             if (string.Equals(account.Kind, "cash", StringComparison.OrdinalIgnoreCase))
             {
                 return _isRussian ? "Доступно сейчас" : "Available now";
+            }
+
+            if (IsLoanAccount(account))
+            {
+                return _isRussian ? "Остаток долга" : "Outstanding debt";
             }
 
             if (IsCreditAccount(account))
@@ -8053,6 +9099,34 @@ namespace Assistant.WinUI
                 return _isRussian
                     ? "Сразу доступно для наличных операций."
                     : "Ready for cash transactions.";
+            }
+
+            if (IsLoanAccount(account))
+            {
+                var segments = new List<string>();
+                if (account.LoanPrincipalMinor is long principalMinor)
+                {
+                    segments.Add((_isRussian ? "Сумма кредита" : "Principal") + ": " + FormatMoney(principalMinor, account.Currency));
+                }
+
+                if (GetLoanScheduledPaymentAmount(account) is long paymentMinor)
+                {
+                    segments.Add((_isRussian ? "Следующий платёж" : "Next payment") + ": " + FormatMoney(paymentMinor, account.Currency));
+                }
+
+                if (account.LoanTotalPayableMinor is long totalPayableMinor)
+                {
+                    segments.Add((_isRussian ? "Всего к выплате" : "Total payable") + ": " + FormatMoney(totalPayableMinor, account.Currency));
+                }
+
+                if (account.LoanInterestPercent is decimal interestPercent)
+                {
+                    segments.Add((_isRussian ? "Ставка" : "Rate") + ": " + interestPercent.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',') + "%");
+                }
+
+                return segments.Count == 0
+                    ? (_isRussian ? "Кредит с ручным учётом долга." : "Loan tracked as a liability.")
+                    : string.Join(" · ", segments);
             }
 
             if (IsCreditAccount(account))
@@ -8087,7 +9161,28 @@ namespace Assistant.WinUI
         {
             if (!IsCreditAccount(account))
             {
-                return null;
+                if (!IsLoanAccount(account))
+                {
+                    return null;
+                }
+
+                var loanParts = new List<string>();
+                if (account.LoanPaymentDueDate is DateTimeOffset paymentDueDate)
+                {
+                    loanParts.Add((_isRussian ? "Платёж до" : "Pay by") + " " + paymentDueDate.ToString("d", _isRussian ? new CultureInfo("ru-RU") : new CultureInfo("en-US")));
+                }
+
+                if (account.LoanRemainingPaymentsCount is int remainingCount)
+                {
+                    loanParts.Add(_isRussian ? $"Осталось платежей: {remainingCount}" : $"Payments left: {remainingCount}");
+                }
+
+                if (GetLoanRemainingPlannedAmount(account) is long remainingPlannedMinor)
+                {
+                    loanParts.Add((_isRussian ? "Осталось заплатить" : "Planned remaining") + " " + FormatMoney(remainingPlannedMinor, account.Currency));
+                }
+
+                return loanParts.Count == 0 ? null : string.Join(" · ", loanParts);
             }
 
             var parts = new List<string>();
@@ -8111,6 +9206,13 @@ namespace Assistant.WinUI
                 return _isRussian ? "Наличные" : "Cash";
             }
 
+            if (IsLoanAccount(account))
+            {
+                return string.IsNullOrWhiteSpace(account.Name)
+                    ? (_isRussian ? "Кредит" : "Loan")
+                    : account.Name;
+            }
+
             return account.BankName
                 ?? GetFinanceProviderLabel(account.ProviderCode)
                 ?? (_isRussian ? "Карта" : "Card");
@@ -8123,6 +9225,11 @@ namespace Assistant.WinUI
                 return "\uEAFD";
             }
 
+            if (IsLoanAccount(account))
+            {
+                return "\uE8C7";
+            }
+
             return "\uE8C7";
         }
 
@@ -8131,6 +9238,11 @@ namespace Assistant.WinUI
             if (string.Equals(account.Kind, "cash", StringComparison.OrdinalIgnoreCase))
             {
                 return Color.FromArgb(255, 214, 154, 63);
+            }
+
+            if (IsLoanAccount(account))
+            {
+                return Color.FromArgb(255, 255, 174, 70);
             }
 
             return IsCreditAccount(account)
@@ -8143,6 +9255,28 @@ namespace Assistant.WinUI
             if (string.Equals(account.Kind, "cash", StringComparison.OrdinalIgnoreCase))
             {
                 return _isRussian ? "Физические деньги вне банковских счетов" : "Physical cash outside bank accounts";
+            }
+
+            if (IsLoanAccount(account))
+            {
+                var loanParts = new List<string>
+                {
+                    account.BankName ?? GetFinanceProviderLabel(account.ProviderCode) ?? (_isRussian ? "Банк" : "Bank")
+                };
+                if (account.LoanInterestPercent is decimal interestPercent)
+                {
+                    loanParts.Add((_isRussian ? "Ставка" : "Rate") + " " + interestPercent.ToString("0.###", CultureInfo.InvariantCulture).Replace('.', ',') + "%");
+                }
+
+                if (account.LoanTotalPaymentsCount is int totalPayments &&
+                    account.LoanRemainingPaymentsCount is int remainingPayments)
+                {
+                    loanParts.Add(_isRussian
+                        ? $"Платежей: {Math.Max(totalPayments - remainingPayments, 0)}/{totalPayments}"
+                        : $"Payments: {Math.Max(totalPayments - remainingPayments, 0)}/{totalPayments}");
+                }
+
+                return string.Join(" · ", loanParts.Where(part => !string.IsNullOrWhiteSpace(part)));
             }
 
             var parts = new List<string> { GetFinanceCardTypeLabel(account.CardType) };
@@ -8166,6 +9300,12 @@ namespace Assistant.WinUI
                 return _isRussian ? "Наличные" : "Cash";
             }
 
+            if (IsLoanAccount(account))
+            {
+                var bankTitle = account.BankName ?? GetFinanceProviderLabel(account.ProviderCode) ?? (_isRussian ? "Кредит" : "Loan");
+                return $"{bankTitle} · {account.Name}";
+            }
+
             var suffix = !string.IsNullOrWhiteSpace(account.LastFourDigits)
                 ? $" •••• {account.LastFourDigits}"
                 : string.Empty;
@@ -8181,8 +9321,15 @@ namespace Assistant.WinUI
             _ => _isRussian ? "Дебетовая" : "Debit"
         };
 
+        private string GetLoanKindLabel() => _isRussian ? "Кредит" : "Loan";
+
         private Color GetTransactionAccent(FinanceTransaction transaction)
         {
+            if (string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase))
+            {
+                return Color.FromArgb(255, 255, 174, 70);
+            }
+
             if (string.Equals(transaction.Direction, "income", StringComparison.OrdinalIgnoreCase))
             {
                 return Color.FromArgb(255, 35, 224, 138);
@@ -8198,6 +9345,11 @@ namespace Assistant.WinUI
 
         private string GetTransactionGlyph(FinanceTransaction transaction)
         {
+            if (string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase))
+            {
+                return "\uE8C7";
+            }
+
             if (string.Equals(transaction.Direction, "income", StringComparison.OrdinalIgnoreCase))
             {
                 return "\uE8C8";
@@ -8214,6 +9366,10 @@ namespace Assistant.WinUI
         private string BuildTransactionMetaLine(FinanceTransaction transaction)
         {
             var parts = new List<string>();
+            if (string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(_isRussian ? "Погашение кредита" : "Loan payment");
+            }
             if (!string.IsNullOrWhiteSpace(transaction.CategoryName))
             {
                 parts.Add(transaction.CategoryName!);
@@ -8223,9 +9379,12 @@ namespace Assistant.WinUI
                 parts.Add(transaction.AccountName);
             }
             parts.Add(GetTransactionSourceLabel(transaction.SourceType));
-            parts.Add(_isRussian
-                ? $"{Math.Max(transaction.ItemCount, transaction.Items.Count)} поз."
-                : $"{Math.Max(transaction.ItemCount, transaction.Items.Count)} items");
+            if (!string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(_isRussian
+                    ? $"{Math.Max(transaction.ItemCount, transaction.Items.Count)} поз."
+                    : $"{Math.Max(transaction.ItemCount, transaction.Items.Count)} items");
+            }
 
             return string.Join(" · ", parts.Where(part => !string.IsNullOrWhiteSpace(part)));
         }
@@ -8236,6 +9395,13 @@ namespace Assistant.WinUI
             if (!string.IsNullOrWhiteSpace(transaction.MerchantName))
             {
                 parts.Add(transaction.MerchantName!);
+            }
+            if (!string.IsNullOrWhiteSpace(transaction.DestinationAccountName) &&
+                string.Equals(transaction.TransactionKind, "loan_payment", StringComparison.OrdinalIgnoreCase))
+            {
+                parts.Add(_isRussian
+                    ? $"Погашение кредита: {transaction.DestinationAccountName}"
+                    : $"Loan payment: {transaction.DestinationAccountName}");
             }
             if (!string.IsNullOrWhiteSpace(transaction.DestinationAccountName) &&
                 string.Equals(transaction.Direction, "transfer", StringComparison.OrdinalIgnoreCase))
