@@ -82,6 +82,7 @@ begin
                 (1, 'expense_health', null, 'expense', 'Здоровье', 'heart-pulse', '#FF6A6A', 40),
                 (1, 'expense_personal', null, 'expense', 'Личное', 'sparkles', '#D881FF', 50),
                 (1, 'expense_leisure', null, 'expense', 'Досуг', 'gamepad-2', '#B57BFF', 60),
+                (1, 'expense_communication', null, 'expense', 'Связь', 'smartphone', '#54A1FF', 65),
                 (1, 'expense_family', null, 'expense', 'Семья и близкие', 'heart-handshake', '#FF8A65', 70),
                 (1, 'expense_finance', null, 'expense', 'Финансы и обязательства', 'badge-russian-ruble', '#7E8A9C', 80),
                 (1, 'expense_other', null, 'expense', 'Прочее', 'folder', '#8D96A8', 90),
@@ -108,6 +109,8 @@ begin
                 (2, 'expense_home_cleaning', 'expense_home', 'expense', 'Уборка и стирка', 'spray-can', null, 23),
                 (2, 'expense_home_furniture', 'expense_home', 'expense', 'Мебель и интерьер', 'armchair', null, 24),
                 (2, 'expense_home_appliances', 'expense_home', 'expense', 'Техника для дома', 'microwave', null, 25),
+                (2, 'expense_home_rent', 'expense_home', 'expense', 'Аренда', 'key-round', null, 26),
+                (2, 'expense_home_mortgage', 'expense_home', 'expense', 'Ипотека', 'building', null, 27),
 
                 (2, 'expense_transport_fuel', 'expense_transport', 'expense', 'Топливо', 'fuel', null, 31),
                 (2, 'expense_transport_public', 'expense_transport', 'expense', 'Общественный транспорт', 'tram-front', null, 32),
@@ -131,6 +134,11 @@ begin
                 (2, 'expense_leisure_cinema', 'expense_leisure', 'expense', 'Кино и события', 'film', null, 63),
                 (2, 'expense_leisure_games', 'expense_leisure', 'expense', 'Игры и хобби', 'gamepad-2', null, 64),
                 (2, 'expense_leisure_travel', 'expense_leisure', 'expense', 'Путешествия', 'plane', null, 65),
+
+                (2, 'expense_communication_mobile', 'expense_communication', 'expense', 'Мобильная связь', 'smartphone', null, 651),
+                (2, 'expense_communication_internet', 'expense_communication', 'expense', 'Интернет', 'wifi', null, 652),
+                (2, 'expense_communication_tv', 'expense_communication', 'expense', 'Телевидение', 'monitor-play', null, 653),
+                (2, 'expense_communication_vpn', 'expense_communication', 'expense', 'VPN', 'shield', null, 654),
 
                 (2, 'expense_family_kids', 'expense_family', 'expense', 'Дети', 'baby', null, 71),
                 (2, 'expense_family_pets', 'expense_family', 'expense', 'Животные', 'paw-print', null, 72),
@@ -159,6 +167,17 @@ begin
                 (3, 'expense_home_supplies_bathroom', 'expense_home_supplies', 'expense', 'Для ванной и туалета', 'bath', null, 222),
                 (3, 'expense_home_supplies_kitchen', 'expense_home_supplies', 'expense', 'Для кухни', 'chef-hat', null, 223),
                 (3, 'expense_home_supplies_consumables', 'expense_home_supplies', 'expense', 'Расходники для дома', 'package-2', null, 224),
+
+                (3, 'expense_food_drinks_water', 'expense_food_drinks', 'expense', 'Вода', 'glass-water', null, 151),
+                (3, 'expense_food_drinks_soda', 'expense_food_drinks', 'expense', 'Газированные напитки', 'cup-soda', null, 152),
+                (3, 'expense_food_drinks_juice', 'expense_food_drinks', 'expense', 'Соки и морсы', 'citrus', null, 153),
+                (3, 'expense_food_drinks_coffee_tea', 'expense_food_drinks', 'expense', 'Кофе и чай', 'coffee', null, 154),
+                (3, 'expense_food_drinks_energy', 'expense_food_drinks', 'expense', 'Энергетики', 'zap', null, 155),
+
+                (3, 'expense_food_snacks_chips', 'expense_food_snacks', 'expense', 'Чипсы', 'package-open', null, 161),
+                (3, 'expense_food_snacks_chocolate', 'expense_food_snacks', 'expense', 'Шоколад и батончики', 'candy', null, 162),
+                (3, 'expense_food_snacks_cookies', 'expense_food_snacks', 'expense', 'Печенье и вафли', 'cookie', null, 163),
+                (3, 'expense_food_snacks_nuts', 'expense_food_snacks', 'expense', 'Орехи и сухофрукты', 'nut', null, 164),
 
                 (3, 'expense_health_doctor_clinic', 'expense_health_doctor', 'expense', 'Клиника и приём', 'hospital', null, 421),
                 (3, 'expense_health_doctor_online', 'expense_health_doctor', 'expense', 'Онлайн-консультации', 'monitor-smartphone', null, 422),

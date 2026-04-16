@@ -1,6 +1,5 @@
 using System;
 using System.Threading.Tasks;
-using Microsoft.UI.Xaml;
 using Microsoft.Windows.AppLifecycle;
 
 namespace Assistant.WinUI
@@ -17,7 +16,7 @@ namespace Assistant.WinUI
                 return;
             }
 
-            Application.Start(_ =>
+            Microsoft.UI.Xaml.Application.Start(_ =>
             {
                 var context = new Microsoft.UI.Dispatching.DispatcherQueueSynchronizationContext(
                     Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread());
@@ -41,3 +40,5 @@ namespace Assistant.WinUI
         }
     }
 }
+
+

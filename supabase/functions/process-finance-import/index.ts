@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { createPartFromUri, GoogleGenAI } from "npm:@google/genai@1.25.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,6 +10,8 @@ const corsHeaders = {
 
 const MAX_FILE_BYTES = 12 * 1024 * 1024;
 const GOOGLE_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
+const GEMINI_FILE_POLL_DELAY_MS = 1200;
+const GEMINI_FILE_POLL_ATTEMPTS = 20;
 
 type CategoryRecord = {
   id: string;
@@ -96,6 +99,14 @@ function bytesToBase64(bytes: Uint8Array) {
   return btoa(binary);
 }
 
+function sanitizeFilename(name: string) {
+  return name
+    .replace(/[^\p{L}\p{N}._() -]+/gu, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 120) || "receipt";
+}
+
 function base64ToBytes(value: string) {
   const normalized = value.replace(/\s+/g, "");
   const binary = atob(normalized);
@@ -167,7 +178,8 @@ function getHeaderParam(value: string | undefined, key: string) {
 
 function parseEml(bytes: Uint8Array) {
   const raw = decodeText(bytes);
-  const [, headerPart = "", bodyPart = ""] = raw.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/) ?? [];
+  const [, headerPart = "", bodyPart = ""] =
+    raw.match(/^([\s\S]*?)\r?\n\r?\n([\s\S]*)$/) ?? [];
   const headers = parseHeaderLines(headerPart);
   const contentType = headers.get("content-type") ?? "";
   const boundary = getHeaderParam(contentType, "boundary");
@@ -205,16 +217,18 @@ function parseEml(bytes: Uint8Array) {
 
     const partHeaders = parseHeaderLines(match[1]);
     const partBody = match[2].replace(/\r?\n--$/, "").trim();
-    const partContentType = (partHeaders.get("content-type") ?? "text/plain").toLowerCase();
+    const partContentType = (partHeaders.get("content-type") ?? "text/plain")
+      .toLowerCase();
     const disposition = partHeaders.get("content-disposition") ?? "";
-    const transferEncoding = (partHeaders.get("content-transfer-encoding") ?? "").toLowerCase();
-    const filename =
-      getHeaderParam(disposition, "filename") ??
+    const transferEncoding =
+      (partHeaders.get("content-transfer-encoding") ?? "").toLowerCase();
+    const filename = getHeaderParam(disposition, "filename") ??
       getHeaderParam(partHeaders.get("content-type"), "name") ??
       "attachment";
 
     if (
-      (partContentType.startsWith("image/") || partContentType === "application/pdf") &&
+      (partContentType.startsWith("image/") ||
+        partContentType === "application/pdf") &&
       transferEncoding.includes("base64")
     ) {
       try {
@@ -262,10 +276,7 @@ function buildCategoryCatalog(categories: CategoryRecord[]) {
 }
 
 function extractJsonEnvelope(payload: unknown) {
-  const text =
-    typeof payload === "string"
-      ? payload
-      : JSON.stringify(payload);
+  const text = typeof payload === "string" ? payload : JSON.stringify(payload);
   const match = text.match(/\{[\s\S]*\}/);
   if (!match) {
     throw new Error("Gemini returned no JSON payload.");
@@ -294,7 +305,8 @@ async function resolveGeminiModel(apiKey: string) {
   const models = (payload.models ?? []).filter((model) => {
     const methods = model.supportedGenerationMethods ?? [];
     const actions = model.supportedActions ?? [];
-    return methods.includes("generateContent") || actions.includes("generateContent");
+    return methods.includes("generateContent") ||
+      actions.includes("generateContent");
   });
 
   const preferred = [
@@ -309,95 +321,66 @@ async function resolveGeminiModel(apiKey: string) {
   }
 
   if (!models.length) {
-    throw new Error("No Gemini model with generateContent is available for this API key.");
+    throw new Error(
+      "No Gemini model with generateContent is available for this API key.",
+    );
   }
 
   return models[0].name;
 }
 
-async function uploadGeminiFile(apiKey: string, bytes: Uint8Array, mimeType: string, filename: string) {
-  const startResponse = await fetch(`${GOOGLE_API_BASE}/upload/files?key=${apiKey}`, {
-    method: "POST",
-    headers: {
-      "X-Goog-Upload-Protocol": "resumable",
-      "X-Goog-Upload-Command": "start",
-      "X-Goog-Upload-Header-Content-Length": String(bytes.byteLength),
-      "X-Goog-Upload-Header-Content-Type": mimeType,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      file: {
-        display_name: filename,
-      },
+async function uploadGeminiFile(
+  apiKey: string,
+  bytes: Uint8Array,
+  mimeType: string,
+  filename: string,
+) {
+  const ai = new GoogleGenAI({ apiKey });
+  const uploadBytes = Uint8Array.from(bytes);
+  const uploadedFile = await ai.files.upload({
+    file: new File([uploadBytes], sanitizeFilename(filename), {
+      type: mimeType,
     }),
-  });
-
-  if (!startResponse.ok) {
-    const errorText = await startResponse.text();
-    throw new Error(errorText || "Failed to initialize Gemini file upload.");
-  }
-
-  const uploadUrl = startResponse.headers.get("x-goog-upload-url");
-  if (!uploadUrl) {
-    throw new Error("Gemini file upload URL is missing.");
-  }
-
-  const uploadResponse = await fetch(uploadUrl, {
-    method: "POST",
-    headers: {
-      "Content-Length": String(bytes.byteLength),
-      "X-Goog-Upload-Offset": "0",
-      "X-Goog-Upload-Command": "upload, finalize",
+    config: {
+      mimeType,
+      displayName: sanitizeFilename(filename),
     },
-    body: bytes,
   });
 
-  if (!uploadResponse.ok) {
-    const errorText = await uploadResponse.text();
-    throw new Error(errorText || "Failed to upload file to Gemini.");
-  }
-
-  const uploaded = await uploadResponse.json() as {
-    file?: {
-      name: string;
-      uri: string;
-      mime_type?: string;
-      mimeType?: string;
-      state?: string;
-    };
-  };
-
-  const fileName = uploaded.file?.name;
-  if (!fileName) {
+  const uploadedName = uploadedFile.name;
+  if (!uploadedName) {
     throw new Error("Gemini upload did not return a file identifier.");
   }
 
-  let currentFile = uploaded.file;
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    if (!currentFile?.state || currentFile.state === "ACTIVE") break;
-    if (currentFile.state === "FAILED") {
+  let currentFile = uploadedFile;
+  for (let attempt = 0; attempt < GEMINI_FILE_POLL_ATTEMPTS; attempt += 1) {
+    const state = currentFile.state?.toString().toUpperCase();
+    if (!state || state === "ACTIVE") {
+      break;
+    }
+
+    if (state === "FAILED") {
       throw new Error("Gemini file processing failed.");
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    const statusResponse = await fetch(`${GOOGLE_API_BASE}/${fileName}?key=${apiKey}`);
-    if (!statusResponse.ok) break;
-    const statusPayload = await statusResponse.json() as { name?: string; uri?: string; mimeType?: string; mime_type?: string; state?: string };
-    currentFile = {
-      name: statusPayload.name ?? fileName,
-      uri: statusPayload.uri ?? currentFile?.uri ?? "",
-      mimeType: statusPayload.mimeType ?? statusPayload.mime_type,
-      state: statusPayload.state,
-    };
+    await new Promise((resolve) =>
+      setTimeout(resolve, GEMINI_FILE_POLL_DELAY_MS)
+    );
+    currentFile = await ai.files.get({ name: uploadedName });
   }
 
-  if (!currentFile?.uri) {
+  const finalState = currentFile.state?.toString().toUpperCase();
+  if (finalState && finalState !== "ACTIVE") {
+    throw new Error(`Gemini file is still ${finalState}.`);
+  }
+
+  if (!currentFile.uri) {
     throw new Error("Gemini file URI is missing after upload.");
   }
 
   return {
     fileUri: currentFile.uri,
-    mimeType: currentFile.mimeType ?? currentFile.mime_type ?? mimeType,
+    mimeType: currentFile.mimeType ?? mimeType,
   };
 }
 
@@ -408,7 +391,7 @@ async function buildGeminiParts(
   documentKind: "image" | "pdf" | "eml",
 ) {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  const parts: Array<Record<string, unknown>> = [];
+  const parts: unknown[] = [];
 
   if (documentKind === "image") {
     parts.push({
@@ -427,12 +410,7 @@ async function buildGeminiParts(
       mimeType,
       file.name || "receipt.pdf",
     );
-    parts.push({
-      file_data: {
-        mime_type: uploadedMimeType,
-        file_uri: fileUri,
-      },
-    });
+    parts.push(createPartFromUri(fileUri, uploadedMimeType));
     return parts;
   }
 
@@ -450,12 +428,7 @@ async function buildGeminiParts(
         attachment.mimeType,
         attachment.filename,
       );
-      parts.push({
-        file_data: {
-          mime_type: uploadedMimeType,
-          file_uri: fileUri,
-        },
-      });
+      parts.push(createPartFromUri(fileUri, uploadedMimeType));
       continue;
     }
 
@@ -490,10 +463,16 @@ function mapDrafts(
   sourceType: "photo" | "file",
   documentKind: "image" | "pdf" | "eml",
 ) {
-  const payload = typeof raw === "object" && raw !== null ? raw as Record<string, unknown> : {};
-  const rawTransactions = Array.isArray(payload.transactions) ? payload.transactions : [];
+  const payload = typeof raw === "object" && raw !== null
+    ? raw as Record<string, unknown>
+    : {};
+  const rawTransactions = Array.isArray(payload.transactions)
+    ? payload.transactions
+    : [];
 
-  const categoryByCode = new Map(categories.map((category) => [category.code, category]));
+  const categoryByCode = new Map(
+    categories.map((category) => [category.code, category]),
+  );
 
   return rawTransactions.map((transaction) => {
     const tx = transaction as Record<string, unknown>;
@@ -502,11 +481,12 @@ function mapDrafts(
     const mappedItems = items
       .map((item) => {
         const current = item as Record<string, unknown>;
-        const categoryCode =
-          typeof current.suggestedCategoryCode === "string"
-            ? current.suggestedCategoryCode
-            : null;
-        const category = categoryCode ? categoryByCode.get(categoryCode) : undefined;
+        const categoryCode = typeof current.suggestedCategoryCode === "string"
+          ? current.suggestedCategoryCode
+          : null;
+        const category = categoryCode
+          ? categoryByCode.get(categoryCode)
+          : undefined;
         const amountMinor = normalizeMinor(current.amountMinor);
         if (!amountMinor) return null;
 
@@ -521,13 +501,15 @@ function mapDrafts(
       })
       .filter((item): item is ImportDraftItem => Boolean(item));
 
-    const amountMinor =
-      normalizeMinor(tx.amountMinor) ||
+    const amountMinor = normalizeMinor(tx.amountMinor) ||
       mappedItems.reduce((total, item) => total + item.amountMinor, 0);
 
     return {
-      title: String(tx.title ?? tx.merchantName ?? "Новая транзакция").trim() || "Новая транзакция",
-      merchantName: typeof tx.merchantName === "string" ? tx.merchantName.trim() || null : null,
+      title: String(tx.title ?? tx.merchantName ?? "Новая транзакция").trim() ||
+        "Новая транзакция",
+      merchantName: typeof tx.merchantName === "string"
+        ? tx.merchantName.trim() || null
+        : null,
       note: typeof tx.note === "string" ? tx.note.trim() || null : null,
       direction: tx.direction === "income" ? "income" : "expense",
       transactionKind: mappedItems.length > 1 ? "split" : "single",
@@ -536,18 +518,17 @@ function mapDrafts(
       happenedAt: typeof tx.happenedAt === "string" ? tx.happenedAt : null,
       sourceType,
       documentKind,
-      items: mappedItems.length
-        ? mappedItems
-        : [
-            {
-              title: String(tx.title ?? tx.merchantName ?? "Позиция").trim() || "Позиция",
-              amountMinor,
-              suggestedCategoryCode: null,
-              suggestedCategoryId: null,
-              suggestedCategoryName: null,
-              suggestedCategoryPath: null,
-            },
-          ],
+      items: mappedItems.length ? mappedItems : [
+        {
+          title: String(tx.title ?? tx.merchantName ?? "Позиция").trim() ||
+            "Позиция",
+          amountMinor,
+          suggestedCategoryCode: null,
+          suggestedCategoryId: null,
+          suggestedCategoryName: null,
+          suggestedCategoryPath: null,
+        },
+      ],
     } satisfies ImportDraftTransaction;
   }).filter((draft) => draft.amountMinor > 0);
 }
@@ -591,14 +572,20 @@ Deno.serve(async (request) => {
     } = await userClient.auth.getUser(accessToken);
 
     if (userError || !user) {
-      return jsonResponse({ error: userError?.message || "Unauthorized." }, 401);
+      return jsonResponse(
+        { error: userError?.message || "Unauthorized." },
+        401,
+      );
     }
 
     const formData = await request.formData();
     const fileEntry = formData.get("file");
-    const sourceTypeEntry = formData.get("sourceType") ?? formData.get("sourceKind");
+    const sourceTypeEntry = formData.get("sourceType") ??
+      formData.get("sourceKind");
     const sourceType =
-      sourceTypeEntry === "photo" || sourceTypeEntry === "camera" ? "photo" : "file";
+      sourceTypeEntry === "photo" || sourceTypeEntry === "camera"
+        ? "photo"
+        : "file";
 
     if (!(fileEntry instanceof File)) {
       return jsonResponse({ error: "File is required." }, 400);
@@ -606,7 +593,10 @@ Deno.serve(async (request) => {
 
     if (fileEntry.size <= 0 || fileEntry.size > MAX_FILE_BYTES) {
       return jsonResponse(
-        { error: `File size must be between 1 byte and ${MAX_FILE_BYTES} bytes.` },
+        {
+          error:
+            `File size must be between 1 byte and ${MAX_FILE_BYTES} bytes.`,
+        },
         400,
       );
     }
@@ -624,7 +614,12 @@ Deno.serve(async (request) => {
       .from("user_settings")
       .select("gemini_api_key, ai_enhancements_enabled")
       .eq("user_id", user.id)
-      .maybeSingle<{ gemini_api_key: string | null; ai_enhancements_enabled: boolean | null }>();
+      .maybeSingle<
+        {
+          gemini_api_key: string | null;
+          ai_enhancements_enabled: boolean | null;
+        }
+      >();
 
     if (settingsError) {
       throw new Error(settingsError.message);
@@ -652,23 +647,30 @@ Deno.serve(async (request) => {
       );
     }
 
-    const categoriesResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/finance_get_categories`, {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
+    const categoriesResponse = await fetch(
+      `${supabaseUrl}/rest/v1/rpc/finance_get_categories`,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey,
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: "{}",
       },
-      body: "{}",
-    });
+    );
 
     if (!categoriesResponse.ok) {
       throw new Error(await categoriesResponse.text());
     }
 
-    const categories = buildCategoryCatalog((await categoriesResponse.json()) as CategoryRecord[]);
+    const categories = buildCategoryCatalog(
+      (await categoriesResponse.json()) as CategoryRecord[],
+    );
     const categoryPrompt = categories
-      .map((category) => `${category.code} | ${category.direction} | ${category.path}`)
+      .map((category) =>
+        `${category.code} | ${category.direction} | ${category.path}`
+      )
       .join("\n");
 
     const modelName = await resolveGeminiModel(geminiApiKey);
@@ -691,78 +693,89 @@ Deno.serve(async (request) => {
       categoryPrompt,
     ].join("\n");
 
-    const response = await fetch(`${GOOGLE_API_BASE}/${modelName}:generateContent`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": geminiApiKey,
-      },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [{ text: prompt }, ...fileParts],
-          },
-        ],
-        generationConfig: {
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "OBJECT",
-            properties: {
-              transactions: {
-                type: "ARRAY",
-                items: {
-                  type: "OBJECT",
-                  properties: {
-                    title: { type: "STRING" },
-                    merchantName: { type: "STRING", nullable: true },
-                    note: { type: "STRING", nullable: true },
-                    direction: { type: "STRING" },
-                    amountMinor: { type: "NUMBER" },
-                    currency: { type: "STRING" },
-                    happenedAt: { type: "STRING", nullable: true },
-                    items: {
-                      type: "ARRAY",
+    const response = await fetch(
+      `${GOOGLE_API_BASE}/${modelName}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": geminiApiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: "user",
+              parts: [{ text: prompt }, ...fileParts],
+            },
+          ],
+          generationConfig: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: "OBJECT",
+              properties: {
+                transactions: {
+                  type: "ARRAY",
+                  items: {
+                    type: "OBJECT",
+                    properties: {
+                      title: { type: "STRING" },
+                      merchantName: { type: "STRING", nullable: true },
+                      note: { type: "STRING", nullable: true },
+                      direction: { type: "STRING" },
+                      amountMinor: { type: "NUMBER" },
+                      currency: { type: "STRING" },
+                      happenedAt: { type: "STRING", nullable: true },
                       items: {
-                        type: "OBJECT",
-                        properties: {
-                          title: { type: "STRING" },
-                          amountMinor: { type: "NUMBER" },
-                          suggestedCategoryCode: { type: "STRING", nullable: true },
+                        type: "ARRAY",
+                        items: {
+                          type: "OBJECT",
+                          properties: {
+                            title: { type: "STRING" },
+                            amountMinor: { type: "NUMBER" },
+                            suggestedCategoryCode: {
+                              type: "STRING",
+                              nullable: true,
+                            },
+                          },
+                          required: [
+                            "title",
+                            "amountMinor",
+                            "suggestedCategoryCode",
+                          ],
                         },
-                        required: ["title", "amountMinor", "suggestedCategoryCode"],
                       },
                     },
+                    required: [
+                      "title",
+                      "merchantName",
+                      "note",
+                      "direction",
+                      "amountMinor",
+                      "currency",
+                      "happenedAt",
+                      "items",
+                    ],
                   },
-                  required: [
-                    "title",
-                    "merchantName",
-                    "note",
-                    "direction",
-                    "amountMinor",
-                    "currency",
-                    "happenedAt",
-                    "items",
-                  ],
+                },
+                warnings: {
+                  type: "ARRAY",
+                  items: { type: "STRING" },
                 },
               },
-              warnings: {
-                type: "ARRAY",
-                items: { type: "STRING" },
-              },
+              required: ["transactions", "warnings"],
             },
-            required: ["transactions", "warnings"],
           },
-        },
-      }),
-    });
+        }),
+      },
+    );
 
     if (!response.ok) {
       throw new Error(await response.text());
     }
 
     const payload = await response.json();
-    const rawJson = payload?.candidates?.[0]?.content?.parts?.[0]?.text ?? payload;
+    const rawJson = payload?.candidates?.[0]?.content?.parts?.[0]?.text ??
+      payload;
     const parsed = extractJsonEnvelope(rawJson);
     const drafts = mapDrafts(parsed, categories, sourceType, documentKind);
 
@@ -787,7 +800,9 @@ Deno.serve(async (request) => {
     console.error("process-finance-import failed", error);
     return jsonResponse(
       {
-        error: error instanceof Error ? error.message : "Unexpected import error.",
+        error: error instanceof Error
+          ? error.message
+          : "Unexpected import error.",
       },
       500,
     );

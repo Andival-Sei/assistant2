@@ -10,4 +10,7 @@
     <Platform Solution="*|x86" Project="x86" />
     <Deploy />
   </Project>
+  <Project Path="Assistant.WinUI.Application/Assistant.WinUI.Application.csproj" />
+  <Project Path="Assistant.WinUI.Infrastructure/Assistant.WinUI.Infrastructure.csproj" />
+  <Project Path="Assistant.WinUI.Tests/Assistant.WinUI.Tests.csproj" />
 </Solution>

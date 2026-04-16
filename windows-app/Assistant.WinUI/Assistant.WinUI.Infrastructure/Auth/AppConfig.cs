@@ -13,6 +13,10 @@ namespace Assistant.WinUI.Auth
         public static string SupabaseAnonKey =>
             Environment.GetEnvironmentVariable("ASSISTANT_SUPABASE_ANON_KEY") ?? DefaultSupabaseAnonKey;
 
+        public static bool HasSupabaseConfiguration =>
+            !string.IsNullOrWhiteSpace(SupabaseUrl) &&
+            !string.IsNullOrWhiteSpace(SupabaseAnonKey);
+
         public static bool GoogleAuthEnabled =>
             !bool.TryParse(Environment.GetEnvironmentVariable("ASSISTANT_ENABLE_GOOGLE_AUTH"), out var enabled) ||
             enabled;
